@@ -22,8 +22,14 @@ namespace LiteGame
 
         private void Start()
         {
+            // stats 两个来源合并：容器注册件（骨架）+ 场景组件型（LuaComponent 等 Unity 组件不进 DI，§3.2）。
+            // HUD 专用一次性扫描（Start 一次，非每帧）；按引用去重防双重展示。
+            var merged = new List<IModuleStats>();
             var entry = FindAnyObjectByType<GameEntry>();
-            if (entry != null) _stats = entry.Stats;
+            if (entry != null) merged.AddRange(entry.Stats);
+            foreach (var comp in FindObjectsByType<MonoBehaviour>(FindObjectsInactive.Exclude, FindObjectsSortMode.None))
+                if (comp is IModuleStats s && !merged.Contains(s)) merged.Add(s);
+            _stats = merged;
         }
 
         private void Update()
@@ -38,6 +44,14 @@ namespace LiteGame
                 s.Snapshot(_buffer);                    // 实现 Clear + 填（契约），HUD 不清
                 sb.AppendLine($"── {s.StatsName} ──");
                 foreach (var kv in _buffer) sb.AppendLine($"  {kv.Key}: {kv.Value}");
+            }
+            // Log Recent 尾巴（手册步骤 8：最近 32 条环缓冲的可见尾部，取 10 条防爆屏）
+            var recent = Log.Recent;                    // index 0 = 最旧，零分配读
+            sb.AppendLine("── Log Recent ──");
+            for (int i = recent.Count > 10 ? recent.Count - 10 : 0; i < recent.Count; i++)
+            {
+                var e = recent[i];
+                sb.AppendLine($"{(e.Level == LiteFramework.LogLevel.Error ? "✗" : e.Level == LiteFramework.LogLevel.Warning ? "⚠" : "·")}{(e.Tag != null ? $"[{e.Tag}]" : "")} {e.Message}");
             }
             _cache = sb.ToString();
         }

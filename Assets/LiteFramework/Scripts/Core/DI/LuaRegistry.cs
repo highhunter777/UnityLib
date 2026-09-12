@@ -35,5 +35,13 @@ namespace LiteFramework
         }
 
         public bool Has(string name) => name != null && _items.ContainsKey(name);
+
+        /// <summary>DevReload 重填前置（§2.7）：旧逻辑表全弃。Generation 前进一位作失效纪元——
+        /// 重填即使逐项同名，消费方也能凭 Generation 变化感知到"实例已换"。幂等。</summary>
+        public void Clear()
+        {
+            if (_items.Count > 0) Generation++;
+            _items.Clear();
+        }
     }
 }
