@@ -48,6 +48,7 @@ namespace LiteGame
                 _container.Seal();                       // 注册面冻结；此后 Resolve 不受限
 
                 Bridge.Bind(() => _config.Tables);       // 服务桥装配期绑定（M2 C# 骨架，M3 绑成 Lua 全局表）
+                Bridge.BindRegistries(_uiRegistry, _contentRegistry);   // ui/content 骨架门面查询底座（§2.5）
 
                 fsm.ChangeState<ProcedurePreload>();
             }
