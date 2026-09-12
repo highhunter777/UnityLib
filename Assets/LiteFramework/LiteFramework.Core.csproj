@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    双轨编译（测试开发方案 §1.2）：LiteFramework.Core 在 Unity（asmdef）与 dotnet（本 csproj）两侧编译。
+    - 范围锁死 Scripts/Core：Core 是 references:[] 零依赖程序集，纯 BCL；Unity 层源码（引 UniTask）不进双轨
+    - EnableDefaultCompileItems=false：SDK 默认 glob 会把 Unity 层源码扫进来，必须关掉改为显式 include
+    - DefineConstants: LITEFRAMEWORK_DEBUG —— dotnet 侧 Debug 校验（重复归还检测/Validate 等）全量激活（§1.1）
+    - LangVersion 9.0：与 Unity 侧 C# 能力对齐，防双轨漂移（dotnet 侧先用了 Unity 编不了的语法 = 假绿）
+    - Unity 忽略 .csproj，本文件入库仅供 dotnet 使用
+  -->
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <LangVersion>9.0</LangVersion>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <DefineConstants>$(DefineConstants);LITEFRAMEWORK_DEBUG</DefineConstants>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="Scripts/Core/**/*.cs" />
+  </ItemGroup>
+
+</Project>

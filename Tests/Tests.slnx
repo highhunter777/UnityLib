@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="../Assets/LiteFramework/LiteFramework.Core.csproj" />
+  <Project Path="LiteFramework.Core.Tests/LiteFramework.Core.Tests.csproj" />
+</Solution>

@@ -1,0 +1,159 @@
+using System;
+using System.Collections;
+using System.Collections.Generic;
+
+
+namespace LiteFramework
+{
+    /// <summary>开发 HUD 数据源。整体随条件编译剥离——release 无此类型,HUD asmdef 同为 Development-only。</summary>
+    public readonly struct ReferencePoolInfo
+    {
+        public readonly Type Type;
+        public readonly int Unused;
+        public readonly int Using;
+        public readonly long AcquireCount;
+        public readonly long ReleaseCount;
+        public readonly int MaxSize;        // 当前容量上限
+        public readonly int PeakUnused;     // 池内数量的历史峰值
+        public readonly long DroppedCount;  // 因超上限被丢弃的次数
+
+        public ReferencePoolInfo(Type type, int unused, int using_, long acquire, long release,
+                                 int maxSize = ReferencePool.DefaultMaxSize,
+                                 int peakUnused = 0, long droppedCount = 0)
+        {
+            Type = type; Unused = unused; Using = using_;
+            AcquireCount = acquire; ReleaseCount = release;
+            MaxSize = maxSize; PeakUnused = peakUnused; DroppedCount = droppedCount;
+        }
+    }
+
+    /// <summary>
+    /// 引用池(静态门面豁免 #2,与 Log 同列;名单封闭,见 §7)。
+    /// 契约:入池对象刚被 Clear;Acquire 方不得假设任何字段为默认值——
+    /// Release 时的 Clear 是防泄漏防御(解除外部引用),不是初始化服务,初始化责任始终在调用方。
+    /// </summary>
+    public static class ReferencePool
+    {
+        /// <summary>
+        /// 每类型池容量上限默认值。**池的内存占用应与"活跃对象数"挂钩,而不是历史峰值**——
+        /// 不设上限时,一次业务高峰(如进战斗)取用的对象会全部永久驻留。
+        /// </summary>
+        public const int DefaultMaxSize = 64;
+
+        private static readonly Dictionary<Type, Bucket> s_buckets = new Dictionary<Type, Bucket>(32);
+
+        private sealed class Bucket
+        {
+            public readonly Queue<IReference> Pool = new Queue<IReference>(4);
+            // 容量控制是运行期的内存保护,release 同样要生效,故不放条件编译内
+            public int MaxSize = DefaultMaxSize;
+#if UNITY_EDITOR || DEVELOPMENT_BUILD || LITEFRAMEWORK_DEBUG
+            public readonly HashSet<IReference> Using = new HashSet<IReference>(4);
+            public long AcquireCount;
+            public long ReleaseCount;
+            public int PeakUnused;
+            public long DroppedCount;
+#endif
+        }
+
+        private static Bucket GetOrAdd(Type t)
+        {
+            if (s_buckets.TryGetValue(t, out var b)) return b;
+            return s_buckets[t] = new Bucket();
+        }
+
+        /// <summary>取对象;空池则 new。返回状态未定义,调用方必须赋值全部业务字段后使用。</summary>
+        public static T Acquire<T>() where T : class, IReference, new()
+        {
+            var bucket = GetOrAdd(typeof(T));
+            T obj = bucket.Pool.Count > 0 ? (T)bucket.Pool.Dequeue() : new T();
+#if UNITY_EDITOR || DEVELOPMENT_BUILD || LITEFRAMEWORK_DEBUG
+            bucket.Using.Add(obj);
+            bucket.AcquireCount++;
+#endif
+            return obj;
+        }
+
+        /// <summary>
+        /// 归还;池负责 Clear。Debug 校验重复归还与未知类型;release 信任 Debug 全绿(重复归还为 UB)。
+        /// **池满(达 MaxSize)时直接丢弃**——对象已 Clear,交给 GC 即可,不无限驻留。
+        /// </summary>
+        public static void Release(IReference reference)
+        {
+            if (reference == null) throw new ArgumentNullException(nameof(reference));
+            var bucket = GetOrAdd(reference.GetType());
+#if UNITY_EDITOR || DEVELOPMENT_BUILD || LITEFRAMEWORK_DEBUG
+            if (!bucket.Using.Remove(reference))
+                throw new InvalidOperationException($"ReferencePool: 重复归还或非 Acquire 所得:{reference.GetType().Name}");
+            bucket.ReleaseCount++;
+#endif
+            try { reference.Clear(); }
+            catch (Exception ex)
+            {
+                Log.Error(ex, $"ReferencePool.{reference.GetType().Name}.Clear");  // Clear 是对象作者代码;炸了丢弃,不入池污染
+                return;
+            }
+
+            if (bucket.Pool.Count >= bucket.MaxSize)
+            {
+#if UNITY_EDITOR || DEVELOPMENT_BUILD || LITEFRAMEWORK_DEBUG
+                bucket.DroppedCount++;
+#endif
+                return;                                  // 超限:丢弃,而非让池随峰值膨胀
+            }
+            bucket.Pool.Enqueue(reference);
+#if UNITY_EDITOR || DEVELOPMENT_BUILD || LITEFRAMEWORK_DEBUG
+            if (bucket.Pool.Count > bucket.PeakUnused) bucket.PeakUnused = bucket.Pool.Count;
+#endif
+        }
+
+        /// <summary>预热:消除业务高峰(如进战斗)首帧的 new 尖峰。保留于 release——纯循环,无统计开销。
+        /// **count 超过当前上限时自动上调上限**——预热即显式声明"我需要这么多容量"。</summary>
+        public static void Add<T>(int count) where T : class, IReference, new()
+        {
+            if (count <= 0) return;
+            var bucket = GetOrAdd(typeof(T));
+            if (count > bucket.MaxSize) bucket.MaxSize = count;
+            for (int i = 0; i < count; i++)
+            {
+                IReference obj = new T();
+                try { obj.Clear(); } catch { /* 预热不因单个对象的 Clear 缺陷中断 */ }
+                bucket.Pool.Enqueue(obj);
+            }
+#if UNITY_EDITOR || DEVELOPMENT_BUILD || LITEFRAMEWORK_DEBUG
+            if (bucket.Pool.Count > bucket.PeakUnused) bucket.PeakUnused = bucket.Pool.Count;
+#endif
+        }
+
+        /// <summary>裁剪池内存量(如退出战斗后释放预热对象)。数量不足则清到空为止。</summary>
+        public static void Remove<T>(int count) where T : class, IReference, new()
+        {
+            if (count <= 0) return;
+            var bucket = GetOrAdd(typeof(T));
+            while (count-- > 0 && bucket.Pool.Count > 0) bucket.Pool.Dequeue();
+        }
+
+        /// <summary>调整某类型的池容量上限(默认 64)。**调小不会立即裁剪已有存量**,只影响后续归还;需要立即释放就配 `Remove`。</summary>
+        public static void SetMaxSize<T>(int maxSize) where T : class, IReference, new()
+        {
+            if (maxSize < 0) throw new ArgumentOutOfRangeException(nameof(maxSize));
+            GetOrAdd(typeof(T)).MaxSize = maxSize;
+        }
+
+#if UNITY_EDITOR || DEVELOPMENT_BUILD || LITEFRAMEWORK_DEBUG
+        /// <summary>HUD 调用;每次分配一个列表(HUD 低频轮询,可接受)。</summary>
+        public static IReadOnlyList<ReferencePoolInfo> GetAllInfos()
+        {
+            var list = new List<ReferencePoolInfo>(s_buckets.Count);
+            foreach (var kv in s_buckets)
+            {
+                var b = kv.Value;
+                list.Add(new ReferencePoolInfo(kv.Key, b.Pool.Count, b.Using.Count,
+                                               b.AcquireCount, b.ReleaseCount,
+                                               b.MaxSize, b.PeakUnused, b.DroppedCount));
+            }
+            return list;
+        }
+#endif
+    }
+}

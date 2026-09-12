@@ -1,0 +1,17 @@
+{
+	"name": "LiteFramework.Unity",
+	"rootNamespace": "LiteFramework",
+	"references": [
+		"LiteFramework.Core",
+		"UniTask"
+	],
+	"includePlatforms": [],
+	"excludePlatforms": [],
+	"allowUnsafeCode": false,
+	"overrideReferences": false,
+	"precompiledReferences": [],
+	"autoReferenced": true,
+	"defineConstraints": [],
+	"versionDefines": [],
+	"noEngineReferences": false
+}
