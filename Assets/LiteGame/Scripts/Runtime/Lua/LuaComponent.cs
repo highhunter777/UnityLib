@@ -1,0 +1,127 @@
+using System;
+using System.Collections.Generic;
+using LiteFramework;
+using UnityEngine;
+using XLua;
+
+namespace LiteGame
+{
+    /// <summary>
+    /// Lua 宿主（M3 步骤 2.3，手册 §五步骤 2——框架唯一新增核心模块）。职责四件：
+    /// ① `LuaEnv` + 自定义 loader（**同步签名**，只从 <see cref="LuaPreloader"/> 预载缓存取——
+    ///    "任何'运行时再异步加载'的念头都是错的"，设计方案 §4.2；未命中 = 校验漏项，带路径直接抛）；
+    /// ② tick 派发开关（`env.Tick()`——Lua 不需要时不调，MonoBehaviour.Update 驱动）；
+    /// ③ 执行 `main.lua`（只 require/定义，重复执行抛——重跑走 DevReload §2.7）；
+    /// ④ `Shutdown()`：env.Dispose（OnDestroy 兜底，play 退出自然触发）。
+    /// 附带：`log` 全局表绑定（info/warning/error → LiteFramework.Log，§4.3 日志收口白名单的首批成员）；
+    /// IModuleStats（HUD：已载文件数 / main 执行 / tick 开关）。
+    /// 热路径纪律（§4.3）：tick 走 env.Tick()；Bridge 查表等低频入口允许动态转换。
+    /// 生命周期：装配点 AddComponent + Init（2.4 接线）；Shutdown 幂等。
+    /// </summary>
+    public sealed class LuaComponent : MonoBehaviour, IModuleStats
+    {
+        private LuaEnv _env;
+        private LuaPreloader _preloader;
+        private bool _tickEnabled;
+        private bool _mainExecuted;
+
+        /// <summary>tick 派发开关（Lua 侧无定时器/协程需求时关闭，省每帧调用）。</summary>
+        public bool TickEnabled
+        {
+            get => _tickEnabled;
+            set { ThrowIfNotInit(); _tickEnabled = value; }
+        }
+
+        /// <summary>main.lua 是否已执行（DevReload 重跑前必为 true，§2.7）。</summary>
+        public bool MainExecuted => _mainExecuted;
+
+        /// <summary>初始化 env + 注册自定义 loader（AddComponent 后调用一次；重复调用抛）。</summary>
+        public void Init(LuaPreloader preloader)
+        {
+            if (_env != null) throw new InvalidOperationException("LuaComponent 已初始化——重复 Init");
+            _preloader = preloader ?? throw new ArgumentNullException(nameof(preloader));
+
+            _env = new LuaEnv();
+            _env.AddLoader(LoadFromCache);
+            BindLog();
+            Log.Info("LuaEnv 初始化完成（loader=预载缓存）", "Lua");
+        }
+
+        /// <summary>
+        /// 自定义 loader：require 路径 → 预载缓存字节。
+        /// filepath 先按点分转斜杠（"Core.class" → "Core/class"），再尝试原样；未命中抛（带路径）。
+        /// </summary>
+        private byte[] LoadFromCache(ref string filepath)
+        {
+            var key = filepath.Replace('.', '/');
+            if (_preloader.Scripts.TryGetValue(key, out var bytes)) return bytes;
+            if (_preloader.Scripts.TryGetValue(filepath, out bytes)) return bytes;
+            throw new InvalidOperationException(
+                $"Lua 预载缓存未命中:{filepath}（require 路径校验漏项——核对 LuaKeys/收集目录）");
+        }
+
+        /// <summary>执行 main.lua（只 require/定义，逻辑表按约定路径暴露）。重复执行抛。</summary>
+        public void DoMain()
+        {
+            ThrowIfNotInit();
+            if (_mainExecuted) throw new InvalidOperationException("main.lua 已执行——重跑走 DevReload（§2.7），禁止二次 DoMain");
+
+            _env.DoString(_preloader.Scripts["main"], "main.lua");
+            _mainExecuted = true;
+            Log.Info("main.lua 执行完成", "Lua");
+        }
+
+        /// <summary>执行 Lua 片段并返回结果（诊断/面板/后续 DevReload 编排用；低频入口）。</summary>
+        public object[] DoString(string chunk, string chunkName = "diag")
+        {
+            ThrowIfNotInit();
+            return _env.DoString(chunk, chunkName);
+        }
+
+        /// <summary>§4.3 日志收口：Lua 侧 log.* 白名单进 LiteFramework.Log（首批成员：info/warning/error）。</summary>
+        private void BindLog()
+        {
+            var logTable = _env.NewTable();
+            logTable.Set("info", new Action<string>(msg => Log.Info(msg, "Lua")));
+            logTable.Set("warning", new Action<string>(msg => Log.Warning(msg, "Lua")));
+            logTable.Set("error", new Action<string>(msg => Log.Error(msg, "Lua")));
+            _env.Global.Set("log", logTable);
+        }
+
+        private void Update()
+        {
+            if (_tickEnabled && _env != null) _env.Tick();
+        }
+
+        /// <summary>释放 env（幂等）。DevReload 场景下由 §2.7 编排调用；play 退出由 OnDestroy 兜底。</summary>
+        public void Shutdown()
+        {
+            if (_env == null) return;
+            _env.Dispose();                                // 全局表随 env 销毁；Bridge 缓存清空是 §2.7 的职责
+            _env = null;
+            _mainExecuted = false;
+            _tickEnabled = false;
+            Log.Info("LuaEnv 已释放", "Lua");
+        }
+
+        private void OnDestroy() => Shutdown();
+
+        private void ThrowIfNotInit()
+        {
+            if (_env == null)
+                throw new InvalidOperationException("LuaComponent 未初始化——Init(LuaPreloader) 必须先于一切调用（2.4 接线）");
+        }
+
+        // ---- IModuleStats（HUD 数据源）----
+
+        string IModuleStats.StatsName => "Lua";
+
+        void IModuleStats.Snapshot(Dictionary<string, string> into)
+        {
+            into["Files"] = (_preloader?.Count ?? 0).ToString();
+            into["MainExecuted"] = _mainExecuted.ToString();
+            into["TickEnabled"] = _tickEnabled.ToString();
+            into["EnvAlive"] = (_env != null).ToString();
+        }
+    }
+}

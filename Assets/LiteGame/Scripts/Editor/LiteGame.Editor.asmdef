@@ -1,0 +1,25 @@
+{
+	"name": "LiteGame.Editor",
+	"rootNamespace": "LiteGame",
+	"references": [
+		"LiteGame.Runtime",
+		"LiteFramework.Core",
+		"LiteFramework.Unity",
+		"Luban.Tables",
+		"UniTask",
+		"xLuaMain",
+		"YooAsset",
+		"YooAsset.Editor"
+	],
+	"includePlatforms": [
+		"Editor"
+	],
+	"excludePlatforms": [],
+	"allowUnsafeCode": false,
+	"overrideReferences": false,
+	"precompiledReferences": [],
+	"autoReferenced": false,
+	"defineConstraints": [],
+	"versionDefines": [],
+	"noEngineReferences": false
+}

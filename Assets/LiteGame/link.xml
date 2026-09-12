@@ -1,0 +1,9 @@
+<linker>
+  <!--
+    IL2CPP 防裁（手册 M2 步骤 7）：Luban 序列化与 LiteFramework DI 构造反射都依赖运行时类型信息。
+    实现类新增时同步核对本表——AOT 纪律见 M0 指导 §10（实现类写进 link.xml）。
+  -->
+  <assembly fullname="Luban.Runtime" preserve="all" />
+  <assembly fullname="Luban.Tables" preserve="all" />
+  <assembly fullname="LiteFramework" preserve="all" />
+</linker>
