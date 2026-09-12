@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Text;
 using LiteFramework;
@@ -11,16 +12,33 @@ namespace LiteGame
     /// "not derived from MonoBehaviour"，2026-09-10 回归为三宏 #if 剥离 + 代码创建，同 DebugTuner 手法）。
     /// 自拉取模式：LiteGame.DevHUD → LiteGame.Runtime 单向引用，HUD 在 Start 经
     /// FindAnyObjectByType 拉 `GameEntry.Stats`（只读统计访问器，非解析入口）+ 场景组件型 IModuleStats 合并。
-    /// **各段渲染开关 = public 字段**（Inspector 可配 / 代码可改，2026-09-13）：showStats / hiddenStats /
-    /// showLogRecent / logRecentLines / showErrorsLine——DevHUDBoot 自建时取字段默认值，要定制就建实例改字段。
+    /// **各段渲染开关 = public 字段**（Inspector 可配 / 代码可改，2026-09-13）：showStats /
+    /// statToggles（单模块段 bool 开关）/ showLogRecent / logRecentLines / showErrorsLine。
+    /// **刘海屏适配**：OnGUI 贴 `Screen.safeArea` 起绘（2026-09-13，设计方案 §1.3 移动适配红线）。
     /// 0.25s 节流轮询：聚合单串、OnGUI 画一次；F1 总开关。</summary>
     public sealed class DevHUD : MonoBehaviour
     {
+        /// <summary>单模块 stats 段开关（按 StatsName 一段一 bool，Inspector 直改；未列出的模块默认显示）。</summary>
+        [Serializable]
+        public class StatToggle
+        {
+            public string statsName;
+            public bool show = true;
+        }
+
         [Header("渲染开关（Inspector / 代码均可改）")]
         [Tooltip("各模块 stats 段总开关")]
         public bool showStats = true;
-        [Tooltip("按 StatsName 隐藏指定模块段（如 Clock.UI / DI）")]
-        public string[] hiddenStats = System.Array.Empty<string>();
+        [Tooltip("单模块段 bool 开关（按 StatsName 匹配；未列出的默认显示）")]
+        public List<StatToggle> statToggles = new List<StatToggle>
+        {
+            new StatToggle { statsName = "MainThreadDispatcher" },
+            new StatToggle { statsName = "Clock.World" },
+            new StatToggle { statsName = "Clock.UI" },
+            new StatToggle { statsName = "EventCenter" },
+            new StatToggle { statsName = "Game" },
+            new StatToggle { statsName = "Lua" },
+        };
         [Tooltip("最近日志尾巴（Log.Recent 环缓冲渲染）")]
         public bool showLogRecent = true;
         [Tooltip("Recent 渲染条数（环缓冲容量 32）")]
@@ -34,11 +52,11 @@ namespace LiteGame
         private float _nextPoll;
         private bool _visible = true;
 
-        private bool IsHidden(string statsName)
+        private bool ShowSection(string statsName)
         {
-            foreach (var n in hiddenStats)
-                if (n == statsName) return true;
-            return false;
+            foreach (var t in statToggles)
+                if (t.statsName == statsName) return t.show;
+            return true;                                    // 未登记的模块默认显示
         }
 
         private void Start()
@@ -64,7 +82,7 @@ namespace LiteGame
             {
                 foreach (var s in _stats)
                 {
-                    if (IsHidden(s.StatsName)) continue;    // 按模块名隐藏（"各部分可选"）
+                    if (!ShowSection(s.StatsName)) continue;    // 单模块 bool 开关（"各部分可选"）
                     s.Snapshot(_buffer);                    // 实现 Clear + 填（契约），HUD 不清
                     sb.AppendLine($"── {s.StatsName} ──");
                     foreach (var kv in _buffer) sb.AppendLine($"  {kv.Key}: {kv.Value}");
@@ -90,8 +108,11 @@ namespace LiteGame
 
         private void OnGUI()
         {
-            if (!_visible) return;
-            GUI.Label(new Rect(8, 8, 480, Screen.height - 16), _cache);
+            if (!_visible || string.IsNullOrEmpty(_cache)) return;
+            // 刘海屏/挖孔适配：贴安全区起绘（桌面/编辑器 safeArea 即全屏；横竖屏切换自动跟随）
+            Rect sa = Screen.safeArea;
+            float width = Mathf.Min(480f, sa.width - 16f);
+            GUI.Label(new Rect(sa.x + 8, sa.y + 8, width, sa.height - 16), _cache);
         }
 
         private void LateUpdate() { if (Input.GetKeyDown(KeyCode.F1)) _visible = !_visible; }
