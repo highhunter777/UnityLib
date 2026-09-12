@@ -10,15 +10,36 @@ namespace LiteGame
     /// 自建 GameObject（场景**不挂**组件——Editor-only asmdef 实测会把 play 模式场景组件剥离并报
     /// "not derived from MonoBehaviour"，2026-09-10 回归为三宏 #if 剥离 + 代码创建，同 DebugTuner 手法）。
     /// 自拉取模式：LiteGame.DevHUD → LiteGame.Runtime 单向引用，HUD 在 Start 经
-    /// FindAnyObjectByType 拉 `GameEntry.Stats`（只读统计访问器，非解析入口）。
-    /// 0.25s 节流轮询：聚合单串、OnGUI 画一次；F1 开关。</summary>
+    /// FindAnyObjectByType 拉 `GameEntry.Stats`（只读统计访问器，非解析入口）+ 场景组件型 IModuleStats 合并。
+    /// **各段渲染开关 = public 字段**（Inspector 可配 / 代码可改，2026-09-13）：showStats / hiddenStats /
+    /// showLogRecent / logRecentLines / showErrorsLine——DevHUDBoot 自建时取字段默认值，要定制就建实例改字段。
+    /// 0.25s 节流轮询：聚合单串、OnGUI 画一次；F1 总开关。</summary>
     public sealed class DevHUD : MonoBehaviour
     {
+        [Header("渲染开关（Inspector / 代码均可改）")]
+        [Tooltip("各模块 stats 段总开关")]
+        public bool showStats = true;
+        [Tooltip("按 StatsName 隐藏指定模块段（如 Clock.UI / DI）")]
+        public string[] hiddenStats = System.Array.Empty<string>();
+        [Tooltip("最近日志尾巴（Log.Recent 环缓冲渲染）")]
+        public bool showLogRecent = true;
+        [Tooltip("Recent 渲染条数（环缓冲容量 32）")]
+        [Range(1, 32)] public int logRecentLines = 10;
+        [Tooltip("错误计数行（仅 ErrorCount > 0 时渲染）")]
+        public bool showErrorsLine = true;
+
         private IReadOnlyList<IModuleStats> _stats;
         private readonly Dictionary<string, string> _buffer = new Dictionary<string, string>(32);   // 全程复用，零容器分配
         private string _cache = "";
         private float _nextPoll;
         private bool _visible = true;
+
+        private bool IsHidden(string statsName)
+        {
+            foreach (var n in hiddenStats)
+                if (n == statsName) return true;
+            return false;
+        }
 
         private void Start()
         {
@@ -38,20 +59,31 @@ namespace LiteGame
             _nextPoll = Time.unscaledTime + 0.25f;
 
             var sb = new StringBuilder(256);
-            if (Log.ErrorCount > 0) sb.AppendLine($"── ⚠ Errors: {Log.ErrorCount} ──");
-            foreach (var s in _stats)
+            if (showErrorsLine && Log.ErrorCount > 0) sb.AppendLine($"── ⚠ Errors: {Log.ErrorCount} ──");
+            if (showStats)
             {
-                s.Snapshot(_buffer);                    // 实现 Clear + 填（契约），HUD 不清
-                sb.AppendLine($"── {s.StatsName} ──");
-                foreach (var kv in _buffer) sb.AppendLine($"  {kv.Key}: {kv.Value}");
+                foreach (var s in _stats)
+                {
+                    if (IsHidden(s.StatsName)) continue;    // 按模块名隐藏（"各部分可选"）
+                    s.Snapshot(_buffer);                    // 实现 Clear + 填（契约），HUD 不清
+                    sb.AppendLine($"── {s.StatsName} ──");
+                    foreach (var kv in _buffer) sb.AppendLine($"  {kv.Key}: {kv.Value}");
+                }
             }
-            // Log Recent 尾巴（手册步骤 8：最近 32 条环缓冲的可见尾部，取 10 条防爆屏）
-            var recent = Log.Recent;                    // index 0 = 最旧，零分配读
-            sb.AppendLine("── Log Recent ──");
-            for (int i = recent.Count > 10 ? recent.Count - 10 : 0; i < recent.Count; i++)
+            // Log Recent 尾巴（手册步骤 8：最近 32 条环缓冲的可见尾部）
+            if (showLogRecent)
             {
-                var e = recent[i];
-                sb.AppendLine($"{(e.Level == LiteFramework.LogLevel.Error ? "✗" : e.Level == LiteFramework.LogLevel.Warning ? "⚠" : "·")}{(e.Tag != null ? $"[{e.Tag}]" : "")} {e.Message}");
+                var recent = Log.Recent;                    // index 0 = 最旧，零分配读
+                if (recent.Count > 0)
+                {
+                    sb.AppendLine("── Log Recent ──");
+                    int take = Mathf.Clamp(logRecentLines, 1, 32);
+                    for (int i = recent.Count > take ? recent.Count - take : 0; i < recent.Count; i++)
+                    {
+                        var e = recent[i];
+                        sb.AppendLine($"{(e.Level == LiteFramework.LogLevel.Error ? "✗" : e.Level == LiteFramework.LogLevel.Warning ? "⚠" : "·")}{(e.Tag != null ? $"[{e.Tag}]" : "")} {e.Message}");
+                    }
+                }
             }
             _cache = sb.ToString();
         }
