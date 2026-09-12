@@ -47,6 +47,12 @@ namespace LiteGame
             BindLog();
             BindBridge();                                      // 服务桥（§2.5）：Bridge.data/ui/content 三门面
             _eventBridge = new EventBridge(_env, eventCenter); // 事件桥（§2.6）：events.on + 显式映射注册
+#if UNITY_EDITOR
+            // LuaPanda 断点钩子（手册步骤 9）：仅编辑器启用（宏隔离——hook 进包 = 真机莫名掉帧）。
+            // LuaPanda.lua 随 Lua 目录分发进预载缓存；未放入时静默跳过，不阻塞开发流。
+            if (_preloader.Scripts.ContainsKey("LuaPanda"))
+                DoString("require('LuaPanda').start()", "luaPanda");
+#endif
             Log.Info("LuaEnv 初始化完成（loader=预载缓存，桥已绑定）", "Lua");
         }
 

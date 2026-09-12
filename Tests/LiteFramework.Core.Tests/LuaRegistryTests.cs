@@ -39,6 +39,20 @@ namespace LiteFramework.Tests
         }
 
         [Fact]
+        public void LuaRegistry_Clear_清空可重填且Generation前进()
+        {
+            _reg.Fill("Test.A", new FakeLogic());
+            var genBefore = _reg.Generation;
+            _reg.Clear();
+            Assert.False(_reg.Has("Test.A"));               // 旧表全弃
+            _reg.Fill("Test.A", new FakeLogic());           // 重填不再被重复 Fill 拦截
+            Assert.True(_reg.Has("Test.A"));
+            Assert.True(_reg.Generation > genBefore);       // 失效纪元：同名重填也可被消费方感知
+            _reg.Clear();                                   // 幂等：空表 Clear 不再前进
+            Assert.Equal(_reg.Generation, _reg.Generation);
+        }
+
+        [Fact]
         public void LuaRegistry_FillGeneration递增()
         {
             Assert.Equal(0, _reg.Generation);

@@ -18,12 +18,12 @@ namespace LiteGame
     {
         private readonly IConfigService _config;
         private readonly LuaComponent _lua;
-        private readonly UiLuaRegistry _ui;
-        private readonly ContentLuaRegistry _content;
-        private readonly StrategyLuaRegistry _strategies;
+        private readonly IUILuaRegistry _ui;
+        private readonly IContentLuaRegistry _content;
+        private readonly IStrategyLuaRegistry _strategies;
 
         public RegistryFiller(IConfigService config, LuaComponent lua,
-            UiLuaRegistry ui, ContentLuaRegistry content, StrategyLuaRegistry strategies)
+            IUILuaRegistry ui, IContentLuaRegistry content, IStrategyLuaRegistry strategies)
         {
             _config = config ?? throw new ArgumentNullException(nameof(config));
             _lua = lua ?? throw new ArgumentNullException(nameof(lua));
@@ -49,7 +49,7 @@ namespace LiteGame
         }
 
         private void FillRows<TRow>(RegistryFillReport report, HashSet<string> failed, string kind,
-            IReadOnlyList<TRow> rows, Func<TRow, string> pathOf, LuaRegistry<LuaTable> registry, CancellationToken ct)
+            IReadOnlyList<TRow> rows, Func<TRow, string> pathOf, ILuaRegistry<LuaTable> registry, CancellationToken ct)
         {
             if (rows == null) return;
             foreach (var row in rows)
@@ -64,7 +64,7 @@ namespace LiteGame
         }
 
         private void FillRow(RegistryFillReport report, HashSet<string> failed, string kind,
-            string fullPath, LuaRegistry<LuaTable> registry)
+            string fullPath, ILuaRegistry<LuaTable> registry)
         {
             try
             {
@@ -104,7 +104,7 @@ namespace LiteGame
         }
 
         private void ValidateKey(RegistryFillReport report, HashSet<string> failed,
-            string kind, LuaRegistry<LuaTable> registry, string key)
+            string kind, ILuaRegistry<LuaTable> registry, string key)
         {
             if (registry.Has(key) || failed.Contains($"{kind}|{key}")) return;
 
