@@ -1,0 +1,8 @@
+{
+	"name": "com.litegame.framework",
+	"displayName": "LiteFramework",
+	"version": "0.1.0",
+	"unity": "2022.3",
+	"description": "轻量自研游戏框架：骨架九件（事件/引用池/对象池/游戏时钟/FSM/Setting/日志/FileSys/装配）+ DI + Lua 逻辑注册表。配套文档见 Docs/。",
+	"dependencies": {}
+}
