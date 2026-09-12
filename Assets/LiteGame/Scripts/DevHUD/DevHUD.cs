@@ -14,7 +14,6 @@ namespace LiteGame
     /// FindAnyObjectByType 拉 `GameEntry.Stats`（只读统计访问器，非解析入口）+ 场景组件型 IModuleStats 合并。
     /// **各段渲染开关 = public 字段**（Inspector 可配 / 代码可改，2026-09-13）：showStats /
     /// statToggles（单模块段 bool 开关）/ showLogRecent / logRecentLines / showErrorsLine。
-    /// **刘海屏适配**：OnGUI 贴 `Screen.safeArea` 起绘（2026-09-13，设计方案 §1.3 移动适配红线）。
     /// 0.25s 节流轮询：聚合单串、OnGUI 画一次；F1 总开关。</summary>
     public sealed class DevHUD : MonoBehaviour
     {
@@ -109,10 +108,7 @@ namespace LiteGame
         private void OnGUI()
         {
             if (!_visible || string.IsNullOrEmpty(_cache)) return;
-            // 刘海屏/挖孔适配：贴安全区起绘（桌面/编辑器 safeArea 即全屏；横竖屏切换自动跟随）
-            Rect sa = Screen.safeArea;
-            float width = Mathf.Min(480f, sa.width - 16f);
-            GUI.Label(new Rect(sa.x + 8, sa.y + 8, width, sa.height - 16), _cache);
+            GUI.Label(new Rect(8, 8, 480, Screen.height - 16), _cache);   // 仅电脑测试用——不做刘海屏适配（设计方案 §1.3 豁免）
         }
 
         private void LateUpdate() { if (Input.GetKeyDown(KeyCode.F1)) _visible = !_visible; }
