@@ -22,6 +22,7 @@ namespace LiteGame
     {
         private LuaEnv _env;
         private LuaPreloader _preloader;
+        private EventBridge _eventBridge;
         private bool _tickEnabled;
         private bool _mainExecuted;
 
@@ -35,8 +36,8 @@ namespace LiteGame
         /// <summary>main.lua 是否已执行（DevReload 重跑前必为 true，§2.7）。</summary>
         public bool MainExecuted => _mainExecuted;
 
-        /// <summary>初始化 env + 注册自定义 loader（AddComponent 后调用一次；重复调用抛）。</summary>
-        public void Init(LuaPreloader preloader)
+        /// <summary>初始化 env + 注册自定义 loader + 绑定服务桥/事件桥（AddComponent 后调用一次；重复调用抛）。</summary>
+        public void Init(LuaPreloader preloader, IEventCenter eventCenter)
         {
             if (_env != null) throw new InvalidOperationException("LuaComponent 已初始化——重复 Init");
             _preloader = preloader ?? throw new ArgumentNullException(nameof(preloader));
@@ -44,7 +45,30 @@ namespace LiteGame
             _env = new LuaEnv();
             _env.AddLoader(LoadFromCache);
             BindLog();
-            Log.Info("LuaEnv 初始化完成（loader=预载缓存）", "Lua");
+            BindBridge();                                      // 服务桥（§2.5）：Bridge.data/ui/content 三门面
+            _eventBridge = new EventBridge(_env, eventCenter); // 事件桥（§2.6）：events.on + 显式映射注册
+            Log.Info("LuaEnv 初始化完成（loader=预载缓存，桥已绑定）", "Lua");
+        }
+
+        /// <summary>
+        /// §4.3 服务桥绑定（§2.5）：Bridge.data/ui/content 组装成全局表——"启动时把容器服务显式绑定成
+        /// Lua 全局表"字面满足。门面方法全走白名单委托 Func&lt;int, LuaTable&gt;（2.1 生成代码已含，零再生成）；
+        /// 只导出三门面，ILuaRegistry/玩法系统一律不导出；禁止 CS. 直引业务类型。
+        /// </summary>
+        private void BindBridge()
+        {
+            var data = _env.NewTable();
+            data.Set("GetItem", new Func<int, LuaTable>(id => Bridge.Data.GetItemLua(_env, id)));
+            data.Set("GetUIForm", new Func<int, LuaTable>(id => Bridge.Data.GetUIFormLua(_env, id)));
+            var ui = _env.NewTable();
+            ui.Set("GetLogic", new Func<int, LuaTable>(Bridge.Ui.GetLogic));
+            var content = _env.NewTable();
+            content.Set("GetProcessor", new Func<int, LuaTable>(Bridge.Content.GetProcessor));
+            var bridge = _env.NewTable();
+            bridge.Set("data", data);
+            bridge.Set("ui", ui);
+            bridge.Set("content", content);
+            _env.Global.Set("Bridge", bridge);
         }
 
         /// <summary>
@@ -108,6 +132,8 @@ namespace LiteGame
         public void Shutdown()
         {
             if (_env == null) return;
+            _eventBridge?.Dispose();                           // 先解事件桥（退订 C# 事件），再销毁 env
+            _eventBridge = null;
             _env.Dispose();                                // 全局表随 env 销毁；Bridge 缓存清空是 §2.7 的职责
             _env = null;
             _mainExecuted = false;

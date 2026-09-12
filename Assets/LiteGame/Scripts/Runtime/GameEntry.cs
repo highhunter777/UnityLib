@@ -76,7 +76,7 @@ namespace LiteGame
             s_container.RegisterInstance<IUIClock>(uiClock);
             s_container.RegisterInstance<IWallClock>(wallClock);
             s_container.RegisterInstance<IEventCenter>(events);
-            s_container.RegisterInstance<Fsm<ProcedureOwner>>(s_fsm = CreateFsm(lua));
+            s_container.RegisterInstance<Fsm<ProcedureOwner>>(s_fsm = CreateFsm(lua, events));
             s_container.RegisterInstance<SettingService>(settings);
             s_container.RegisterInstance<GameSettings>(gameSettings);
 
@@ -92,7 +92,7 @@ namespace LiteGame
         /// 流程三件 + 错误流程（M2）。业务服务在 ProcedureLaunch 装配（注册 IConfigService/SceneService → Seal）；
         /// 流程依赖在装配点（本 Awake）构造注入存为流程字段——流程依赖不从 Owner 取（局部服务定位器同罪）。
         /// </summary>
-        private static Fsm<ProcedureOwner> CreateFsm(LuaComponent lua)
+        private static Fsm<ProcedureOwner> CreateFsm(LuaComponent lua, EventCenter events)
         {
             var config = new ConfigService((location, ct) => AssetService.LoadRawFileBytesAsync(location, ct));
             var scenes = new SceneService();
@@ -103,7 +103,7 @@ namespace LiteGame
             var filler = new RegistryFiller(config, lua, uiRegistry, contentRegistry, strategyRegistry);
             return new Fsm<ProcedureOwner>("Game", new ProcedureOwner(),
                 new ProcedureLaunch(s_container, config, scenes, uiRegistry, contentRegistry, strategyRegistry),
-                new ProcedurePreload(config, lua, filler),
+                new ProcedurePreload(config, lua, filler, events),
                 new ProcedureMain(),
                 new ProcedureError());
         }

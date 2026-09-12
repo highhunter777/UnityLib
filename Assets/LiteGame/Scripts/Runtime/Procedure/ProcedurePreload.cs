@@ -16,12 +16,14 @@ namespace LiteGame
         private readonly IConfigService _config;
         private readonly LuaComponent _lua;
         private readonly RegistryFiller _filler;
+        private readonly IEventCenter _events;
 
-        public ProcedurePreload(IConfigService config, LuaComponent lua, RegistryFiller filler)
+        public ProcedurePreload(IConfigService config, LuaComponent lua, RegistryFiller filler, IEventCenter events)
         {
             _config = config ?? throw new ArgumentNullException(nameof(config));
             _lua = lua ?? throw new ArgumentNullException(nameof(lua));
             _filler = filler ?? throw new ArgumentNullException(nameof(filler));
+            _events = events ?? throw new ArgumentNullException(nameof(events));
         }
 
         protected override void RunAsync(Fsm<ProcedureOwner> fsm, CancellationToken ct)
@@ -38,7 +40,7 @@ namespace LiteGame
                 // ① 全量预载：同步 loader 的咽喉（§4.2），env 依赖它，先建缓存再 Init
                 var preloader = new LuaPreloader();
                 await preloader.PreloadAllAsync(ct);
-                _lua.Init(preloader);
+                _lua.Init(preloader, _events);                   // env + 桥绑定（服务桥 §2.5 / 事件桥 §2.6）
                 _lua.DoMain();                                   // ② 执行 main.lua（require/定义，§4.4）
                 _lua.TickEnabled = true;                         // tick 派发开（宿主心跳；main.lua 无定时器也无害）
 
