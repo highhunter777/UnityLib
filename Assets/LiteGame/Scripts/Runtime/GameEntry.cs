@@ -65,6 +65,10 @@ namespace LiteGame
             var wallClock = new SystemWallClock();
             var gameSettings = new GameSettings(settings);
 
+            // 4.5 Lua 宿主组件（M3 §2.4 接线，2.3 交付件）：挂 GameEntry 同 GameObject；
+            //     Init/DoMain 在 Preload 锚点（依赖预载缓存就绪），不进 DI（Unity 组件不进容器，§3.2）
+            var lua = gameObject.AddComponent<LuaComponent>();
+
             // 5. 注册（**注册顺序 = 驱动顺序**：MainThreadDispatcher 帧首泵最先 → 时钟 → FSM；
             //    注册即发现自动收集 ITickable/IModuleStats，无需手工维护列表）
             s_container.RegisterInstance<IMainThreadDispatcher>(new MainThreadDispatcher());
@@ -72,7 +76,7 @@ namespace LiteGame
             s_container.RegisterInstance<IUIClock>(uiClock);
             s_container.RegisterInstance<IWallClock>(wallClock);
             s_container.RegisterInstance<IEventCenter>(events);
-            s_container.RegisterInstance<Fsm<ProcedureOwner>>(s_fsm = CreateFsm());
+            s_container.RegisterInstance<Fsm<ProcedureOwner>>(s_fsm = CreateFsm(lua));
             s_container.RegisterInstance<SettingService>(settings);
             s_container.RegisterInstance<GameSettings>(gameSettings);
 
@@ -88,13 +92,18 @@ namespace LiteGame
         /// 流程三件 + 错误流程（M2）。业务服务在 ProcedureLaunch 装配（注册 IConfigService/SceneService → Seal）；
         /// 流程依赖在装配点（本 Awake）构造注入存为流程字段——流程依赖不从 Owner 取（局部服务定位器同罪）。
         /// </summary>
-        private static Fsm<ProcedureOwner> CreateFsm()
+        private static Fsm<ProcedureOwner> CreateFsm(LuaComponent lua)
         {
             var config = new ConfigService((location, ct) => AssetService.LoadRawFileBytesAsync(location, ct));
             var scenes = new SceneService();
+            // 三注册表实例 + 填充器（M3 §2.4）：装配点创建 → ProcedureLaunch 注册进容器 → Preload 锚点填充
+            var uiRegistry = new UiLuaRegistry();
+            var contentRegistry = new ContentLuaRegistry();
+            var strategyRegistry = new StrategyLuaRegistry();
+            var filler = new RegistryFiller(config, lua, uiRegistry, contentRegistry, strategyRegistry);
             return new Fsm<ProcedureOwner>("Game", new ProcedureOwner(),
-                new ProcedureLaunch(s_container, config, scenes),
-                new ProcedurePreload(config),
+                new ProcedureLaunch(s_container, config, scenes, uiRegistry, contentRegistry, strategyRegistry),
+                new ProcedurePreload(config, lua, filler),
                 new ProcedureMain(),
                 new ProcedureError());
         }

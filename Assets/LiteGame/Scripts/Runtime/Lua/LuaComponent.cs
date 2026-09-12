@@ -78,6 +78,17 @@ namespace LiteGame
             return _env.DoString(chunk, chunkName);
         }
 
+        /// <summary>
+        /// require 路径是否已在预载缓存（RegistryFiller 区分"未注册/注册失败"用——§3.4 错误语义，
+        /// 不靠 require 抛错后的字符串匹配）。点分转斜杠 + 原样双试，与 loader 同一契约。
+        /// </summary>
+        public bool HasCached(string requirePath)
+        {
+            ThrowIfNotInit();
+            var key = requirePath.Replace('.', '/');
+            return _preloader.Scripts.ContainsKey(key) || _preloader.Scripts.ContainsKey(requirePath);
+        }
+
         /// <summary>§4.3 日志收口：Lua 侧 log.* 白名单进 LiteFramework.Log（首批成员：info/warning/error）。</summary>
         private void BindLog()
         {

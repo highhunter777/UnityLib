@@ -6,17 +6,22 @@ using LiteFramework;
 namespace LiteGame
 {
     /// <summary>
-    /// 预载流程（M2 最小版）：资源初始化 → 配置加载 → 放行。
-    /// M3 锚点：在此处按序追加——预载 Lua（全量 LoadRawFileTextAsync 进字典）→ 执行 main.lua →
-    /// 读注册表三件套逐行 require/校验/包适配器 → Fill 注册表（设计方案 §4.3 启动接线）。
+    /// 预载流程（M3 版）：资源初始化 → 配置加载 → **M3 锚点五步序**（手册步骤 4 / M3 指导 §2.4）——
+    /// ① Lua 全量预载 → ② Init env + 执行 main.lua → ③ RegistryFiller 读三件套填充注册表 →
+    /// ④ 报告整批统一判定（有失败即 Fail 阻断）→ ⑤ 放行进 Main。
+    /// LuaComponent/RegistryFiller 由装配点构造注入（依赖不从 Owner 取）。
     /// </summary>
     public sealed class ProcedurePreload : ProcedureBase<ProcedureOwner>
     {
         private readonly IConfigService _config;
+        private readonly LuaComponent _lua;
+        private readonly RegistryFiller _filler;
 
-        public ProcedurePreload(IConfigService config)
+        public ProcedurePreload(IConfigService config, LuaComponent lua, RegistryFiller filler)
         {
             _config = config ?? throw new ArgumentNullException(nameof(config));
+            _lua = lua ?? throw new ArgumentNullException(nameof(lua));
+            _filler = filler ?? throw new ArgumentNullException(nameof(filler));
         }
 
         protected override void RunAsync(Fsm<ProcedureOwner> fsm, CancellationToken ct)
@@ -30,8 +35,26 @@ namespace LiteGame
                 await _config.LoadAsync(ct);
 
                 // ---- M3 锚点：Lua 预载与注册表填充段（勿在此行上方插入消费逻辑）----
+                // ① 全量预载：同步 loader 的咽喉（§4.2），env 依赖它，先建缓存再 Init
+                var preloader = new LuaPreloader();
+                await preloader.PreloadAllAsync(ct);
+                _lua.Init(preloader);
+                _lua.DoMain();                                   // ② 执行 main.lua（require/定义，§4.4）
+                _lua.TickEnabled = true;                         // tick 派发开（宿主心跳；main.lua 无定时器也无害）
 
-                fsm.ChangeState<ProcedureMain>();
+                var report = _filler.FillAll(ct);                // ③ 读三件套逐行 require/校验 → Fill → 报告
+                if (report.HasFailures)                          // ④ 整批统一判定（不遇错即停，一次拿全问题）
+                {
+                    foreach (var f in report.Failures)
+                        Log.Error($"注册表填充失败 [{f.kind}] {f.key}:{f.reason}", "Lua");
+                    Fail(fsm, new InvalidOperationException(
+                            $"注册表填充失败 {report.Failed}/{report.Total}——阻止进 Main（§3.4 fail-fast，不做带病启动）"),
+                        nameof(RunAsyncCore));
+                    fsm.ChangeState<ProcedureError>();
+                    return;
+                }
+
+                fsm.ChangeState<ProcedureMain>();                // ⑤ 放行
             }
             catch (OperationCanceledException) { /* 正常取消，静默 */ }
             catch (Exception ex)

@@ -5,7 +5,9 @@ using System.Collections.Generic;
 
 namespace LiteFramework
 {
-    public sealed class LuaRegistry<T> : ILuaRegistry<T>
+    /// 开放继承（M3 §2.4）：业务侧以空子类 + 标记接口对三注册表作类型化区分（容器按 Type 键控）；
+    /// 子类不得重写行为（仅构造传 kind）。
+    public class LuaRegistry<T> : ILuaRegistry<T>
     {
         private readonly string _kind;    // "UI" / "Content" / "Strategies"——报错信息的路径约定提示用
         private readonly Dictionary<string, T> _items = new(StringComparer.Ordinal);  // key 大小写敏感, culturally 稳定
