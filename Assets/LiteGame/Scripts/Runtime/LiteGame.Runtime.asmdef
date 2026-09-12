@@ -1,0 +1,22 @@
+{
+	"name": "LiteGame.Runtime",
+	"rootNamespace": "LiteGame",
+	"references": [
+		"LiteFramework.Core",
+		"LiteFramework.Unity",
+		"Luban.Runtime",
+		"Luban.Tables",
+		"UniTask",
+		"YooAsset",
+		"xLuaMain"
+	],
+	"includePlatforms": [],
+	"excludePlatforms": [],
+	"allowUnsafeCode": false,
+	"overrideReferences": false,
+	"precompiledReferences": [],
+	"autoReferenced": true,
+	"defineConstraints": [],
+	"versionDefines": [],
+	"noEngineReferences": false
+}

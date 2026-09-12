@@ -1,0 +1,118 @@
+using System;
+using System.Collections.Generic;
+using System.Threading;
+using LiteFramework;
+using UnityEngine;
+
+namespace LiteGame
+{
+    /// <summary>骨架装配点 + 根容器宿主（§12）。容器不静态暴露 Resolve；实例全程持有供驱动枚举 Tickables。</summary>
+    [DefaultExecutionOrder(-1000)]   // 必须最先 Awake：RegisterInstance 静态入口只在本件 Awake 后可用
+    public sealed class GameEntry : MonoBehaviour
+    {
+        private static ServiceContainer s_container;
+        private static Fsm<ProcedureOwner> s_fsm;
+        private bool _active;
+
+        /// <summary>组件 Awake 的唯一入口：**只许注册，不许解析**；装配密封后抛。</summary>
+        public static void RegisterInstance<TInterface>(TInterface instance)
+        {
+            if (s_container == null || s_container.IsSealed)
+                throw new InvalidOperationException("GameEntry 未装配或装配已密封");
+            s_container.RegisterInstance(instance);
+        }
+
+        /// <summary>把装配权传给起始流程。ProcedureLaunch 是**唯一受信装配点**：
+        /// 注册业务服务 → Seal。用 public：ProcedureLaunch 在 LiteGame.Runtime，跨程序集访问。</summary>
+        public ServiceContainer TakeContainer()
+        {
+            if (s_container == null) throw new InvalidOperationException("未装配");
+            return s_container;
+        }
+
+        /// <summary>只读统计列表（DevHUD 跨程序集拉取用）：**不是解析入口**，不含容器语义。</summary>
+        public IReadOnlyList<IModuleStats> Stats => s_container != null
+            ? s_container.Stats
+            : Array.Empty<IModuleStats>();
+
+        private void Awake()
+        {
+            // 重复引导守卫（叠加加载场景时的真实隐患）：场景实例若误含 GameEntry，DontDestroyOnLoad + Awake
+            // 会二次引导并覆盖静态容器/静态设施——静默销毁重复件，保留首个引导（实测见 M2 指导实施记录）。
+            if (s_container != null)
+            {
+                Log.Warning($"检测到重复 GameEntry（场景 {gameObject.scene.name} 误含引导件）——已销毁，保留首个引导", "GameEntry");
+                Destroy(gameObject);
+                return;
+            }
+            _active = true;
+
+            // 1. 基础设施（FileSys 未 Init 一切 IO 抛；Log 未注入静默丢弃）
+            FileSys.Init(new UnityPathProvider(), new NewtonsoftJsonSerializer());
+            Log.SetHelper(new UnityLogHelper());
+
+            // 2. 设置（先于容器与各壳注册：UI/声音壳注册时就要读玩家偏好）
+            var settings = new SettingService();
+            settings.Load();
+
+            // 3. 容器
+            s_container = new ServiceContainer();
+
+            // 4. 创建骨架件与设置消费面
+            var events = new EventCenter();
+            var worldClock = new WorldClock();
+            var uiClock = new UIClock();
+            var wallClock = new SystemWallClock();
+            var gameSettings = new GameSettings(settings);
+
+            // 5. 注册（**注册顺序 = 驱动顺序**：MainThreadDispatcher 帧首泵最先 → 时钟 → FSM；
+            //    注册即发现自动收集 ITickable/IModuleStats，无需手工维护列表）
+            s_container.RegisterInstance<IMainThreadDispatcher>(new MainThreadDispatcher());
+            s_container.RegisterInstance<IWorldClock>(worldClock);
+            s_container.RegisterInstance<IUIClock>(uiClock);
+            s_container.RegisterInstance<IWallClock>(wallClock);
+            s_container.RegisterInstance<IEventCenter>(events);
+            s_container.RegisterInstance<Fsm<ProcedureOwner>>(s_fsm = CreateFsm());
+            s_container.RegisterInstance<SettingService>(settings);
+            s_container.RegisterInstance<GameSettings>(gameSettings);
+
+            // 6. 调试组件注入（同 GameObject；均为可选——未挂即跳过）
+            GetComponent<DebugTuner>()?.Inject(worldClock, uiClock, events);
+            GetComponent<M0SelfTestRunner>()?.Inject(s_container.Tickables, s_container.Stats);
+            // DevHUD 跨程序集（LiteGame.DevHUD → LiteGame.Runtime 单向），自拉取：见 DevHUD.Start
+
+            DontDestroyOnLoad(gameObject);
+        }
+
+        /// <summary>
+        /// 流程三件 + 错误流程（M2）。业务服务在 ProcedureLaunch 装配（注册 IConfigService/SceneService → Seal）；
+        /// 流程依赖在装配点（本 Awake）构造注入存为流程字段——流程依赖不从 Owner 取（局部服务定位器同罪）。
+        /// </summary>
+        private static Fsm<ProcedureOwner> CreateFsm()
+        {
+            var config = new ConfigService((location, ct) => AssetService.LoadRawFileBytesAsync(location, ct));
+            var scenes = new SceneService();
+            return new Fsm<ProcedureOwner>("Game", new ProcedureOwner(),
+                new ProcedureLaunch(s_container, config, scenes),
+                new ProcedurePreload(config),
+                new ProcedureMain(),
+                new ProcedureError());
+        }
+
+        /// <summary>FSM 启动放 Start：晚于全部组件 Awake 的 RegisterInstance——流程顺序契约
+        /// （ProcedureLaunch 会 Seal 封注册面，密封后组件注册即违例）。</summary>
+        private void Start()
+        {
+            if (!_active) return;                            // 重复引导件：Awake 已销毁，不参与
+            TakeContainer();                                 // 断言已装配
+            s_fsm.Start<ProcedureLaunch>();
+        }
+
+        private void Update()
+        {
+            if (!_active) return;                            // 重复引导件销毁前的最后一帧不驱动
+            // 统一喂真实帧间隔：变速由 IGameClock 内部缩放（勿用 Time.deltaTime 二次乘）
+            foreach (var t in s_container.Tickables) t.Tick(Time.unscaledDeltaTime);
+        }
+    }
+}

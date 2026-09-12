@@ -1,0 +1,60 @@
+using System;
+using System;
+using System.Collections.Generic;
+using System.Threading;
+using Cysharp.Threading.Tasks;
+using LiteFramework;
+using YooAsset;
+
+namespace LiteGame
+{
+    /// <summary>
+    /// Lua 全量预载器（M3 步骤 2.2）。**loader 是同步签名 → 启动期全量预载是咽喉**（设计方案 §4.2）：
+    /// require 链上任何一个未缓存文件都意味着运行中途炸——不能带缺口进 Main（§3.4 致命级）。
+    /// 清单来源（§1b 实测定案）：**tag `lua` 经 `GetAssetInfos("lua")`**——3.0.5 该重载即按 tag 查询，
+    /// **无目录枚举 API**（fallback 不存在，收集器 AssetTags 必须配 `lua`，已配）。
+    /// key = require 路径：剥 `Assets/LiteGame/Lua/` 前缀与 `.lua` 后缀（如 `ui/UIMain`、`cfg/tbuiform`）。
+    /// 生命周期：Preload 锚点构造并填充（2.4 接线），DevReload 时清空重载（§2.7）。
+    /// </summary>
+    public sealed class LuaPreloader
+    {
+        /// <summary>Lua 资源收集目录（YooAsset location 前缀；跨平台恒为 Assets 路径——单源：Editor 的 LiteGameIgnoreRule 亦引用此常量）。</summary>
+        public const string LuaDir = "Assets/LiteGame/Lua/";
+
+        private readonly Dictionary<string, byte[]> _scripts = new Dictionary<string, byte[]>(256);
+
+        /// <summary>已预载脚本（require 路径 → 字节；loader 只读）。</summary>
+        public IReadOnlyDictionary<string, byte[]> Scripts => _scripts;
+
+        public int Count => _scripts.Count;
+
+        public async UniTask PreloadAllAsync(CancellationToken ct = default)
+        {
+            _scripts.Clear();                              // DevReload 重入语义：清了再来
+            var infos = AssetService.Package.GetAssetInfos("lua");
+            if (infos == null || infos.Length == 0)
+                throw new InvalidOperationException("Lua 预载清单为空——收集组 LiteGameLua 的 lua tag 未生效");
+
+            foreach (var info in infos)
+            {
+                if (!info.AssetPath.EndsWith(".lua", StringComparison.Ordinal))
+                    continue;
+                var key = ToRequireKey(info.AssetPath);
+                ct.ThrowIfCancellationRequested();
+                _scripts[key] = await AssetService.LoadRawFileBytesAsync(info.AssetPath, ct);
+            }
+            Log.Info($"Lua 全量预载完成：{Count} 个文件", "Lua");
+        }
+
+        /// <summary>资源路径 → require 路径（loader 的 filepath 契约）。</summary>
+        public static string ToRequireKey(string assetPath)
+        {
+            if (assetPath == null) throw new ArgumentNullException(nameof(assetPath));
+            if (assetPath.StartsWith(LuaDir, StringComparison.Ordinal) == false
+                || assetPath.EndsWith(".lua", StringComparison.Ordinal) == false)
+                throw new ArgumentException($"非 Lua 目录资源:{assetPath}");
+            //去除后缀名作为键名
+            return assetPath.Substring(LuaDir.Length, assetPath.Length - LuaDir.Length - 4);
+        }
+    }
+}
