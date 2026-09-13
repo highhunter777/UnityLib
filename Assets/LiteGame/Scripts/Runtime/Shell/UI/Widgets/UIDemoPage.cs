@@ -196,6 +196,29 @@ namespace LiteGame.UI
                 Destroy(go);
                 return ok;
             });
+            Check("所有权互斥：金币走绑定 + 命令式违例抛（§4.7 共存验收）", () =>
+            {
+                var root = new GameObject("t");
+                var goldGo = new GameObject("GoldText", typeof(UnityEngine.UI.Text));
+                goldGo.transform.SetParent(root.transform, false);
+                var index = new UIBindIndex(new Dictionary<string, Component>
+                {
+                    ["GoldText"] = goldGo.GetComponent<UnityEngine.UI.Text>()
+                });
+
+                var binder = index.BindText<int>("GoldText", v => "金币 " + v);   // 绑定驱动
+                binder.Set(100);
+                var label = goldGo.GetComponent<UnityEngine.UI.Text>();
+                bool boundWrite = label.text == "金币 100";                        // 绑定写值生效
+
+                bool violationCaught = false;
+                try { index.SetText("GoldText", "命令式改写"); }                    // 命令式 → 违例
+                catch (InvalidOperationException) { violationCaught = true; }
+                bool textKept = label.text == "金币 100";                          // 违例未生效（值保持）
+
+                Destroy(root);
+                return boundWrite && violationCaught && textKept;
+            });
             LogSummary($"控件自检完成 PASS={_pass} FAIL={_fail}");
         }
 
