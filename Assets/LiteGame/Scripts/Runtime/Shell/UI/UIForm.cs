@@ -34,7 +34,7 @@ namespace LiteGame
         // ---- 生命周期迁移（UIService 编排调用；守卫 + 逻辑回调定序）----
 
         /// <summary>首次打开：Loading → OnInit → OnShow → Active。</summary>
-        internal void EnterActiveFromLoading(object data)
+        internal void EnterActiveFromLoading(IUIData data)
         {
             Transit(UIFormState.Loading, UIFormState.Active);
             SafeCall.Invoke(() => Logic.OnInit(this, data), $"UIForm[{Id}].OnInit");
@@ -42,7 +42,7 @@ namespace LiteGame
         }
 
         /// <summary>池化复用：Recycled →（SetActive true）→ OnShow → Active。OnInit 不重跑。</summary>
-        internal void EnterActiveFromRecycled(object data)
+        internal void EnterActiveFromRecycled(IUIData data)
         {
             Transit(UIFormState.Recycled, UIFormState.Active);
             Root.SetActive(true);
