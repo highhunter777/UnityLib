@@ -8,7 +8,8 @@
 		"Luban.Tables",
 		"UniTask",
 		"YooAsset",
-		"xLuaMain"
+		"xLuaMain",
+		"DOTween.Modules"
 	],
 	"includePlatforms": [],
 	"excludePlatforms": [],
