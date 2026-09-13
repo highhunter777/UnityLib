@@ -79,3 +79,16 @@ MonoBehaviour:
         FilterRuleName: CollectAll
         AssetTags: lua
         UserData: 
+    - GroupName: LiteGameUI
+      GroupDesc: "UI 界面 prefab（M4 —— PackSeparately 单界面单包体支撑热更粒度，tag ui）"
+      AssetTags: 
+      ActiveRuleName: EnableGroup
+      Collectors:
+      - CollectPath: Assets/UI
+        CollectorGUID: 
+        CollectorType: 0
+        AddressRuleName: AddressByFileName
+        PackRuleName: PackSeparately
+        FilterRuleName: CollectAll
+        AssetTags: ui
+        UserData: 

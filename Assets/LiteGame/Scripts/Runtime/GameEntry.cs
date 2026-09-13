@@ -69,6 +69,11 @@ namespace LiteGame
             //     Init/DoMain 在 Preload 锚点（依赖预载缓存就绪），不进 DI（Unity 组件不进容器，§3.2）
             var lua = gameObject.AddComponent<LuaComponent>();
 
+            // 4.6 UI 壳（M4 §2.0/2.1）：ConfigService 提前到装配点（UIFormCatalog 投影依赖）；
+            //     目录投影 + 壳服务创建——Launch 注册，配置加载后即可 Show
+            var config = new ConfigService((location, ct) => AssetService.LoadRawFileBytesAsync(location, ct));
+            var uiService = new UIService(new UIFormCatalog(config));
+
             // 5. 注册（**注册顺序 = 驱动顺序**：MainThreadDispatcher 帧首泵最先 → 时钟 → FSM；
             //    注册即发现自动收集 ITickable/IModuleStats，无需手工维护列表）
             s_container.RegisterInstance<IMainThreadDispatcher>(new MainThreadDispatcher());
@@ -76,7 +81,7 @@ namespace LiteGame
             s_container.RegisterInstance<IUIClock>(uiClock);
             s_container.RegisterInstance<IWallClock>(wallClock);
             s_container.RegisterInstance<IEventCenter>(events);
-            s_container.RegisterInstance<Fsm<ProcedureOwner>>(s_fsm = CreateFsm(lua, events));
+            s_container.RegisterInstance<Fsm<ProcedureOwner>>(s_fsm = CreateFsm(config, lua, events, uiService));
             s_container.RegisterInstance<SettingService>(settings);
             s_container.RegisterInstance<GameSettings>(gameSettings);
 
@@ -92,9 +97,8 @@ namespace LiteGame
         /// 流程三件 + 错误流程（M2）。业务服务在 ProcedureLaunch 装配（注册 IConfigService/SceneService → Seal）；
         /// 流程依赖在装配点（本 Awake）构造注入存为流程字段——流程依赖不从 Owner 取（局部服务定位器同罪）。
         /// </summary>
-        private static Fsm<ProcedureOwner> CreateFsm(LuaComponent lua, EventCenter events)
+        private static Fsm<ProcedureOwner> CreateFsm(ConfigService config, LuaComponent lua, EventCenter events, UIService uiService)
         {
-            var config = new ConfigService((location, ct) => AssetService.LoadRawFileBytesAsync(location, ct));
             var scenes = new SceneService();
             // 三注册表实例 + 填充器（M3 §2.4）：装配点创建 → ProcedureLaunch 注册进容器 → Preload 锚点填充
             var uiRegistry = new UiLuaRegistry();
@@ -102,7 +106,7 @@ namespace LiteGame
             var strategyRegistry = new StrategyLuaRegistry();
             var filler = new RegistryFiller(config, lua, uiRegistry, contentRegistry, strategyRegistry);
             return new Fsm<ProcedureOwner>("Game", new ProcedureOwner(),
-                new ProcedureLaunch(s_container, config, scenes, uiRegistry, contentRegistry, strategyRegistry),
+                new ProcedureLaunch(s_container, config, scenes, uiRegistry, contentRegistry, strategyRegistry, uiService),
                 new ProcedurePreload(config, lua, filler, events),
                 new ProcedureMain(),
                 new ProcedureError());
