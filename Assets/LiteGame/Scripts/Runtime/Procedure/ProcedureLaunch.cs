@@ -24,11 +24,14 @@ namespace LiteGame
         private readonly ILogicScheduler _logicScheduler;
         private readonly IUIScheduler _uiScheduler;
         private readonly GameTimelineRunner _timelineRunner;
+        private readonly EntityService _entities;
+        private readonly AudioService _audio;
 
         public ProcedureLaunch(ServiceContainer container, ConfigService config, SceneService scenes,
             UiLuaRegistry uiRegistry, ContentLuaRegistry contentRegistry, StrategyLuaRegistry strategyRegistry,
             UIService uiService, RedDotRegistry redDotRegistry,
-            ILogicScheduler logicScheduler, IUIScheduler uiScheduler, GameTimelineRunner timelineRunner)
+            ILogicScheduler logicScheduler, IUIScheduler uiScheduler, GameTimelineRunner timelineRunner,
+            EntityService entityService, AudioService audioService)
         {
             _container = container ?? throw new ArgumentNullException(nameof(container));
             _config = config ?? throw new ArgumentNullException(nameof(config));
@@ -41,6 +44,8 @@ namespace LiteGame
             _logicScheduler = logicScheduler ?? throw new ArgumentNullException(nameof(logicScheduler));
             _uiScheduler = uiScheduler ?? throw new ArgumentNullException(nameof(uiScheduler));
             _timelineRunner = timelineRunner ?? throw new ArgumentNullException(nameof(timelineRunner));
+            _entities = entityService ?? throw new ArgumentNullException(nameof(entityService));
+            _audio = audioService ?? throw new ArgumentNullException(nameof(audioService));
         }
 
         protected override void RunAsync(Fsm<ProcedureOwner> fsm, CancellationToken ct)
@@ -62,6 +67,8 @@ namespace LiteGame
                 _container.RegisterInstance<ILogicScheduler>(_logicScheduler);   // 时序双轨（M4 §2.7：逻辑轨受时停）
                 _container.RegisterInstance<IUIScheduler>(_uiScheduler);         // UI 轨不受时停
                 _container.RegisterInstance<ITimelineRunner>(_timelineRunner);   // 时间轴执行器（剧情/技能）
+                _container.RegisterInstance<EntityService>(_entities);   // 实体壳（M4 §2.8：池化+竞态表）
+                _container.RegisterInstance<AudioService>(_audio);       // 声音壳（M4 §2.9：组+代理）
                 _container.Seal();                       // 注册面冻结；此后 Resolve 不受限
 
                 Bridge.Bind(() => _config.Tables);       // 服务桥装配期绑定（M2 C# 骨架，M3 绑成 Lua 全局表）

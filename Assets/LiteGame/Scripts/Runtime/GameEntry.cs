@@ -86,6 +86,10 @@ namespace LiteGame
             var uiScheduler = new UIScheduler(uiClock);
             var timelineRunner = new GameTimelineRunner(worldClock);
 
+            // 4.8 薄壳双件（M4 §2.8/§2.9，手册步骤 6）：实体壳（池化+竞态表）/ 声音壳（组+代理）——均不转发 Lua
+            var entityService = new EntityService();
+            var audioService = new AudioService();
+
             // 5. 注册（**注册顺序 = 驱动顺序**：MainThreadDispatcher 帧首泵最先 → 时钟 → FSM；
             //    注册即发现自动收集 ITickable/IModuleStats，无需手工维护列表）
             s_container.RegisterInstance<IMainThreadDispatcher>(new MainThreadDispatcher());
@@ -93,7 +97,7 @@ namespace LiteGame
             s_container.RegisterInstance<IUIClock>(uiClock);
             s_container.RegisterInstance<IWallClock>(wallClock);
             s_container.RegisterInstance<IEventCenter>(events);
-            s_container.RegisterInstance<Fsm<ProcedureOwner>>(s_fsm = CreateFsm(config, lua, events, uiService, uiRegistry, contentRegistry, strategyRegistry, redDotRegistry, logicScheduler, uiScheduler, timelineRunner));
+            s_container.RegisterInstance<Fsm<ProcedureOwner>>(s_fsm = CreateFsm(config, lua, events, uiService, uiRegistry, contentRegistry, strategyRegistry, redDotRegistry, logicScheduler, uiScheduler, timelineRunner, entityService, audioService));
             s_container.RegisterInstance<SettingService>(settings);
             s_container.RegisterInstance<GameSettings>(gameSettings);
 
@@ -112,12 +116,13 @@ namespace LiteGame
         private static Fsm<ProcedureOwner> CreateFsm(ConfigService config, LuaComponent lua, EventCenter events,
             UIService uiService, UiLuaRegistry uiRegistry, ContentLuaRegistry contentRegistry,
             StrategyLuaRegistry strategyRegistry, RedDotRegistry redDotRegistry,
-            ILogicScheduler logicScheduler, IUIScheduler uiScheduler, GameTimelineRunner timelineRunner)
+            ILogicScheduler logicScheduler, IUIScheduler uiScheduler, GameTimelineRunner timelineRunner,
+            EntityService entityService, AudioService audioService)
         {
             var scenes = new SceneService();
             var filler = new RegistryFiller(config, lua, uiRegistry, contentRegistry, strategyRegistry);
             return new Fsm<ProcedureOwner>("Game", new ProcedureOwner(),
-                new ProcedureLaunch(s_container, config, scenes, uiRegistry, contentRegistry, strategyRegistry, uiService, redDotRegistry, logicScheduler, uiScheduler, timelineRunner),
+                new ProcedureLaunch(s_container, config, scenes, uiRegistry, contentRegistry, strategyRegistry, uiService, redDotRegistry, logicScheduler, uiScheduler, timelineRunner, entityService, audioService),
                 new ProcedurePreload(config, lua, filler, events),
                 new ProcedureMain(),
                 new ProcedureError());
