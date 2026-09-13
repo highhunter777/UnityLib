@@ -68,6 +68,9 @@ namespace LiteGame
             data.Set("GetUIForm", new Func<int, LuaTable>(id => Bridge.Data.GetUIFormLua(_env, id)));
             var ui = _env.NewTable();
             ui.Set("GetLogic", new Func<int, LuaTable>(Bridge.Ui.GetLogic));
+            ui.Set("Show", new Action<int, LuaTable>(Bridge.Ui.Show));          // 真实门面（M4 §2.3，委托需 Generate Code）
+            ui.Set("Close", new Action<int>(Bridge.Ui.Close));
+            ui.Set("IsOpen", new Func<int, bool>(Bridge.Ui.IsOpen));
             var content = _env.NewTable();
             content.Set("GetProcessor", new Func<int, LuaTable>(Bridge.Content.GetProcessor));
             var bridge = _env.NewTable();

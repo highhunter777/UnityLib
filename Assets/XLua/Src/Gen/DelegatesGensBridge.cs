@@ -81,6 +81,73 @@ namespace XLua
 #endif
 		}
         
+		public void __Gen_Delegate_Imp3(int p0)
+		{
+#if THREAD_SAFE || HOTFIX_ENABLE
+            lock (luaEnv.luaEnvLock)
+            {
+#endif
+                RealStatePtr L = luaEnv.rawL;
+                int errFunc = LuaAPI.pcall_prepare(L, errorFuncRef, luaReference);
+                
+                LuaAPI.xlua_pushinteger(L, p0);
+                
+                PCall(L, 1, 0, errFunc);
+                
+                
+                
+                LuaAPI.lua_settop(L, errFunc - 1);
+                
+#if THREAD_SAFE || HOTFIX_ENABLE
+            }
+#endif
+		}
+        
+		public void __Gen_Delegate_Imp4(int p0, XLua.LuaTable p1)
+		{
+#if THREAD_SAFE || HOTFIX_ENABLE
+            lock (luaEnv.luaEnvLock)
+            {
+#endif
+                RealStatePtr L = luaEnv.rawL;
+                int errFunc = LuaAPI.pcall_prepare(L, errorFuncRef, luaReference);
+                ObjectTranslator translator = luaEnv.translator;
+                LuaAPI.xlua_pushinteger(L, p0);
+                translator.Push(L, p1);
+                
+                PCall(L, 2, 0, errFunc);
+                
+                
+                
+                LuaAPI.lua_settop(L, errFunc - 1);
+                
+#if THREAD_SAFE || HOTFIX_ENABLE
+            }
+#endif
+		}
+        
+		public bool __Gen_Delegate_Imp5(int p0)
+		{
+#if THREAD_SAFE || HOTFIX_ENABLE
+            lock (luaEnv.luaEnvLock)
+            {
+#endif
+                RealStatePtr L = luaEnv.rawL;
+                int errFunc = LuaAPI.pcall_prepare(L, errorFuncRef, luaReference);
+                
+                LuaAPI.xlua_pushinteger(L, p0);
+                
+                PCall(L, 1, 1, errFunc);
+                
+                
+                bool __gen_ret = LuaAPI.lua_toboolean(L, errFunc + 1);
+                LuaAPI.lua_settop(L, errFunc - 1);
+                return  __gen_ret;
+#if THREAD_SAFE || HOTFIX_ENABLE
+            }
+#endif
+		}
+        
         
 		static DelegateBridge()
 		{
@@ -103,6 +170,21 @@ namespace XLua
 		    if (type == typeof(System.Func<int, XLua.LuaTable>))
 			{
 			    return new System.Func<int, XLua.LuaTable>(__Gen_Delegate_Imp2);
+			}
+		
+		    if (type == typeof(System.Action<int>))
+			{
+			    return new System.Action<int>(__Gen_Delegate_Imp3);
+			}
+		
+		    if (type == typeof(System.Action<int, XLua.LuaTable>))
+			{
+			    return new System.Action<int, XLua.LuaTable>(__Gen_Delegate_Imp4);
+			}
+		
+		    if (type == typeof(System.Func<int, bool>))
+			{
+			    return new System.Func<int, bool>(__Gen_Delegate_Imp5);
 			}
 		
 		    return null;

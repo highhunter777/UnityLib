@@ -21,6 +21,9 @@ namespace LiteGame.Editor
             typeof(System.Action),
             typeof(System.Action<string>),
             typeof(System.Func<int, XLua.LuaTable>),        // Bridge.data 查表适配（LuaComponent 注册）
+            typeof(System.Action<int>),                     // Bridge.ui.Close（M4 §2.3）
+            typeof(System.Action<int, XLua.LuaTable>),      // Bridge.ui.Show(id, dataTable)（M4 §2.3）
+            typeof(System.Func<int, bool>),                 // Bridge.ui.IsOpen（M4 §2.3）
         };
     }
 }

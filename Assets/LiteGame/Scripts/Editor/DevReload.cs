@@ -40,10 +40,12 @@ namespace LiteGame.Editor
             var container = Object.FindFirstObjectByType<LiteGame.GameEntry>().TakeContainer();
             var config = container.Resolve<LiteGame.IConfigService>();
             var events = container.Resolve<LiteFramework.IEventCenter>();
+            var uiService = container.Resolve<LiteGame.UIService>();
             var ui = container.Resolve<LiteGame.IUILuaRegistry>();
             var content = container.Resolve<LiteGame.IContentLuaRegistry>();
             var strategy = container.Resolve<LiteGame.IStrategyLuaRegistry>();
 
+            await uiService.CloseAllOpen();                // ⓪ 重载后全关（§2.3 定案：旧 env 的适配器随 Dispose 失效）
             Bridge.Data.ClearLuaCaches();                  // ① 旧 LuaTable 引用先放手（§2.5 缓存位）
             ui.Clear();                                    // ② 注册表清空
             content.Clear();
