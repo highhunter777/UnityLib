@@ -21,10 +21,14 @@ namespace LiteGame
         private readonly StrategyLuaRegistry _strategyRegistry;
         private readonly UIService _ui;
         private readonly RedDotRegistry _redDot;
+        private readonly ILogicScheduler _logicScheduler;
+        private readonly IUIScheduler _uiScheduler;
+        private readonly GameTimelineRunner _timelineRunner;
 
         public ProcedureLaunch(ServiceContainer container, ConfigService config, SceneService scenes,
             UiLuaRegistry uiRegistry, ContentLuaRegistry contentRegistry, StrategyLuaRegistry strategyRegistry,
-            UIService uiService, RedDotRegistry redDotRegistry)
+            UIService uiService, RedDotRegistry redDotRegistry,
+            ILogicScheduler logicScheduler, IUIScheduler uiScheduler, GameTimelineRunner timelineRunner)
         {
             _container = container ?? throw new ArgumentNullException(nameof(container));
             _config = config ?? throw new ArgumentNullException(nameof(config));
@@ -34,6 +38,9 @@ namespace LiteGame
             _strategyRegistry = strategyRegistry ?? throw new ArgumentNullException(nameof(strategyRegistry));
             _ui = uiService ?? throw new ArgumentNullException(nameof(uiService));
             _redDot = redDotRegistry ?? throw new ArgumentNullException(nameof(redDotRegistry));
+            _logicScheduler = logicScheduler ?? throw new ArgumentNullException(nameof(logicScheduler));
+            _uiScheduler = uiScheduler ?? throw new ArgumentNullException(nameof(uiScheduler));
+            _timelineRunner = timelineRunner ?? throw new ArgumentNullException(nameof(timelineRunner));
         }
 
         protected override void RunAsync(Fsm<ProcedureOwner> fsm, CancellationToken ct)
@@ -52,6 +59,9 @@ namespace LiteGame
                 _container.RegisterInstance<IStrategyLuaRegistry>(_strategyRegistry);
                 _container.RegisterInstance<UIService>(_ui);    // UI 壳（M4 §2.1：薄壳 = DI 注册的普通服务）
                 _container.RegisterInstance<RedDotRegistry>(_redDot);   // 红点规则口（M4 §2.5：完整树 = M4c）
+                _container.RegisterInstance<ILogicScheduler>(_logicScheduler);   // 时序双轨（M4 §2.7：逻辑轨受时停）
+                _container.RegisterInstance<IUIScheduler>(_uiScheduler);         // UI 轨不受时停
+                _container.RegisterInstance<ITimelineRunner>(_timelineRunner);   // 时间轴执行器（剧情/技能）
                 _container.Seal();                       // 注册面冻结；此后 Resolve 不受限
 
                 Bridge.Bind(() => _config.Tables);       // 服务桥装配期绑定（M2 C# 骨架，M3 绑成 Lua 全局表）

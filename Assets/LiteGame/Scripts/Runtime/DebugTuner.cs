@@ -14,6 +14,8 @@ namespace LiteGame
         private EventCenter _events;
 
         [Header("世界时钟（时停/变速）")]
+        [Tooltip("同步开关：false = 停止每帧覆写，允许运行期程序直接改时钟（时序验证/脚本演出用）")]
+        public bool SyncEnabled = true;
         [Range(0f, 2f)] public float WorldTimeScale = 1f;
         public bool WorldPaused;
 
@@ -28,7 +30,7 @@ namespace LiteGame
 
         private void Update()
         {
-            if (_world == null) return;
+            if (_world == null || !SyncEnabled) return;    // 关同步：滑杆停管，时钟归程序直控
             _world.TimeScale = WorldTimeScale;
             _world.Paused   = WorldPaused;
             _ui.Paused      = UiPaused;
