@@ -9,7 +9,9 @@
 		"UniTask",
 		"YooAsset",
 		"xLuaMain",
-		"DOTween.Modules"
+		"DOTween.Modules",
+		"Unity.TextMeshPro",
+		"BindCodeGen.Runtime"
 	],
 	"includePlatforms": [],
 	"excludePlatforms": [],

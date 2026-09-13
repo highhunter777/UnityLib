@@ -76,8 +76,9 @@ namespace LiteGame
             var uiRegistry = new UiLuaRegistry();
             var contentRegistry = new ContentLuaRegistry();
             var strategyRegistry = new StrategyLuaRegistry();
+            var redDotRegistry = new RedDotRegistry();        // 红点规则注册口（M4 §2.5：完整红点树 = M4c）
             var uiService = new UIService(new UIFormCatalog(config),
-                logicResolver: info => new LuaBehaviourAdapter(uiRegistry.Get(info.LuaPath)));
+                logicResolver: info => new LuaBehaviourAdapter(lua.Env, uiRegistry.Get(info.LuaPath)));
 
             // 5. 注册（**注册顺序 = 驱动顺序**：MainThreadDispatcher 帧首泵最先 → 时钟 → FSM；
             //    注册即发现自动收集 ITickable/IModuleStats，无需手工维护列表）
@@ -86,7 +87,7 @@ namespace LiteGame
             s_container.RegisterInstance<IUIClock>(uiClock);
             s_container.RegisterInstance<IWallClock>(wallClock);
             s_container.RegisterInstance<IEventCenter>(events);
-            s_container.RegisterInstance<Fsm<ProcedureOwner>>(s_fsm = CreateFsm(config, lua, events, uiService, uiRegistry, contentRegistry, strategyRegistry));
+            s_container.RegisterInstance<Fsm<ProcedureOwner>>(s_fsm = CreateFsm(config, lua, events, uiService, uiRegistry, contentRegistry, strategyRegistry, redDotRegistry));
             s_container.RegisterInstance<SettingService>(settings);
             s_container.RegisterInstance<GameSettings>(gameSettings);
 
@@ -103,12 +104,13 @@ namespace LiteGame
         /// 流程依赖在装配点（本 Awake）构造注入存为流程字段——流程依赖不从 Owner 取（局部服务定位器同罪）。
         /// </summary>
         private static Fsm<ProcedureOwner> CreateFsm(ConfigService config, LuaComponent lua, EventCenter events,
-            UIService uiService, UiLuaRegistry uiRegistry, ContentLuaRegistry contentRegistry, StrategyLuaRegistry strategyRegistry)
+            UIService uiService, UiLuaRegistry uiRegistry, ContentLuaRegistry contentRegistry,
+            StrategyLuaRegistry strategyRegistry, RedDotRegistry redDotRegistry)
         {
             var scenes = new SceneService();
             var filler = new RegistryFiller(config, lua, uiRegistry, contentRegistry, strategyRegistry);
             return new Fsm<ProcedureOwner>("Game", new ProcedureOwner(),
-                new ProcedureLaunch(s_container, config, scenes, uiRegistry, contentRegistry, strategyRegistry, uiService),
+                new ProcedureLaunch(s_container, config, scenes, uiRegistry, contentRegistry, strategyRegistry, uiService, redDotRegistry),
                 new ProcedurePreload(config, lua, filler, events),
                 new ProcedureMain(),
                 new ProcedureError());
