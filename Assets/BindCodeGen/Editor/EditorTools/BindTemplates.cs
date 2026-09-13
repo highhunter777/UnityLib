@@ -48,7 +48,7 @@ namespace BindCodeGen.EditorTools
         }
 
         /// <summary>Designer 文件:每次生成都整体重写,仅包含绑定字段。</summary>
-        public static string BuildDesignerFile(string className, string namespaceName, List<BindMark> marks)
+        public static string BuildDesignerFile(string className, string namespaceName, List<BindMark> marks, string baseClassFullName = null)
         {
             var cb = new CodeBuilder();
 
@@ -79,6 +79,26 @@ namespace BindCodeGen.EditorTools
 
                     cb.Line(string.Format("public {0} {1};", mark.TypeFullName, mark.MemberName));
                     cb.Line();
+                }
+
+                // 双路径 B 的受控索引登记（M4 §2.4 对接：Designer 字段同时进 UIBindIndex，
+                // 受控 API 面与路径 A 汇合）。仅当基类为 UIBindBase 时生成。
+                if (!string.IsNullOrEmpty(baseClassFullName) && baseClassFullName.Contains("UIBindBase"))
+                {
+                    cb.Line();
+                    cb.Line("private void Awake()");
+                    cb.Open();
+                    var registered = 0;
+                    for (var i = 0; i < marks.Count; i++)
+                    {
+                        var mark = marks[i];
+                        var indexName = mark.Bind != null ? mark.Bind.BindName : null;
+                        if (string.IsNullOrEmpty(indexName)) continue;
+                        cb.Line(string.Format("RegisterControl(\"{0}\", {1});", indexName, mark.MemberName));
+                        registered++;
+                    }
+                    if (registered == 0) cb.Line("// (无 BindName 登记——索引由运行期标记构建提供)");
+                    cb.Close();
                 }
             }
 
