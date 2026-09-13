@@ -22,22 +22,16 @@ namespace LiteGame
         }
     }
 
-    /// <summary>实体生命周期回调（可选组件）：实体根上挂实现即被壳驱动（池化复用时逐次触发）。</summary>
-    public interface IEntityLifecycle
-    {
-        void OnSpawn();      // 池取出/首次实例化后
-        void OnRecycle();    // 回收入池前（隐藏前清理：粒子停、事件退订等）
-    }
-
     /// <summary>
-    /// 实体壳（M4 §2.8，手册步骤 6）：池化 GameObject + 生命周期容器 + **加载竞态表**。
+    /// 实体壳（M4 §2.8，手册步骤 6）：句柄制实体管理叠在通用 <see cref="GameObjectPool"/> 之上
+    /// （2026-09-13 提炼：池化内核归 Unity 层通用池，本类只留实体语义——Reserve/竞态表/句柄制）。
     /// 实体 = 视觉表现件，逻辑回 C# 玩法系统（设计方案 §4.1）——**不转发 Lua**。
     /// 竞态语义（GF EntitiesToReleaseOnLoad 同款）：加载在途收到 Hide → 记入竞态表 →
-    /// 加载完成后取消显示（直接出返回 null）。池按 location 分桶、只增不毁（复用零加载）。
+    /// 加载完成后取消显示（直接出返回 null）。生命周期回调 = IPoolLifecycle（通用池驱动）。
     /// </summary>
     public sealed class EntityService : IModuleStats
     {
-        private readonly Dictionary<string, Stack<GameObject>> _pool = new Dictionary<string, Stack<GameObject>>(8);
+        private readonly GameObjectPool _pool = new GameObjectPool();
         private readonly Dictionary<int, EntityHandle> _active = new Dictionary<int, EntityHandle>(16);
         private readonly HashSet<int> _inFlight = new HashSet<int>();           // 加载在途
         private readonly HashSet<int> _releaseOnLoad = new HashSet<int>();      // 加载竞态表
@@ -50,23 +44,19 @@ namespace LiteGame
         public UniTask<EntityHandle> ShowAsync(string location, Transform parent = null, CancellationToken ct = default)
             => ShowAsync(Reserve(), location, parent, ct);
 
-        /// <summary>显示实体（指定句柄）：池命中直取；未命中加载 → 竞态表命中则取消（返回 null）。</summary>
+        /// <summary>显示实体（指定句柄）：池命中直取（零加载）；未命中加载 → 竞态表命中则取消（返回 null）。</summary>
         public async UniTask<EntityHandle> ShowAsync(int handleId, string location, Transform parent = null, CancellationToken ct = default)
         {
             if (_active.ContainsKey(handleId))
                 throw new InvalidOperationException($"实体句柄 {handleId} 已在使用（先 Hide 再 Show，§3.4 fail-fast）");
 
-            // 池命中：零加载直取
-            if (_pool.TryGetValue(location, out var stack) && stack.Count > 0)
+            // 池命中：零加载直取（生命周期 OnSpawn 由通用池驱动）
+            if (_pool.TryGet(location, out var pooled, parent))
             {
-                var pooled = stack.Pop();
-                pooled.SetActive(true);
-                if (parent != null) pooled.transform.SetParent(parent, false);
-                var handle = new EntityHandle(handleId, location, pooled);
-                _active[handleId] = handle;
-                pooled.GetComponent<IEntityLifecycle>()?.OnSpawn();
-                Log.Info($"实体[{handleId}] 复用（{location}）", "Entity");
-                return handle;
+                var pooledHandle = new EntityHandle(handleId, location, pooled);
+                _active[handleId] = pooledHandle;
+                Log.Info($"实体[{handleId}] 复用（{location}，池中 {_pool.PooledTotal}）", "Entity");
+                return pooledHandle;
             }
 
             // 未命中：加载在途登记（竞态窗口开启）
@@ -82,12 +72,12 @@ namespace LiteGame
                     return null;
                 }
 
-                var go = UnityEngine.Object.Instantiate(prefab, parent != null ? parent : null);
-                go.name = $"{System.IO.Path.GetFileNameWithoutExtension(location)}[{handleId}]";
+                // 首建：经通用池建桶（打 PooledInstance 标记，后续走复用）
+                var go = _pool.Get(location, () => UnityEngine.Object.Instantiate(prefab, parent), parent);
                 var handle = new EntityHandle(handleId, location, go);
                 _active[handleId] = handle;
-                handle.GameObject.GetComponent<IEntityLifecycle>()?.OnSpawn();
-                Log.Info($"实体[{handleId}] 显示（{location}）", "Entity");
+                handle.GameObject.GetComponent<IPoolLifecycle>()?.OnSpawn();
+                Log.Info($"实体[{handleId}] 显示（{location}，池中 {_pool.PooledTotal}）", "Entity");
                 return handle;
             }
             finally
@@ -96,18 +86,14 @@ namespace LiteGame
             }
         }
 
-        /// <summary>隐藏实体：活跃 → 回收入池；加载在途 → 竞态表；未知句柄告警忽略。</summary>
+        /// <summary>隐藏实体：活跃 → 通用池回收（OnRecycle + 隐藏 + 归桶）；加载在途 → 竞态表；未知句柄告警忽略。</summary>
         public void Hide(int handleId)
         {
             if (_active.TryGetValue(handleId, out var handle))
             {
-                handle.GameObject.GetComponent<IEntityLifecycle>()?.OnRecycle();
-                handle.GameObject.SetActive(false);
-                if (!_pool.TryGetValue(handle.Location, out var stack))
-                    _pool[handle.Location] = stack = new Stack<GameObject>(4);
-                stack.Push(handle.GameObject);
+                _pool.Release(handle.GameObject);
                 _active.Remove(handleId);
-                Log.Info($"实体[{handleId}] 回收（{handle.Location}，池深 {stack.Count}）", "Entity");
+                Log.Info($"实体[{handleId}] 回收（{handle.Location}，池中 {_pool.PooledTotal}）", "Entity");
                 return;
             }
             if (_inFlight.Contains(handleId))
@@ -124,9 +110,7 @@ namespace LiteGame
         {
             into["活跃"] = _active.Count.ToString();
             into["加载中"] = _inFlight.Count.ToString();
-            int pooled = 0;
-            foreach (var s in _pool.Values) pooled += s.Count;
-            into["池中"] = pooled.ToString();
+            into["池中"] = _pool.PooledTotal.ToString();
             into["竞态表"] = _releaseOnLoad.Count.ToString();
         }
     }
