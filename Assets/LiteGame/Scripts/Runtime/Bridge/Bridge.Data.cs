@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using LiteFramework;
 using XLua;
 using cfg;
 
@@ -15,8 +16,9 @@ namespace LiteGame
     public static class Bridge
     {
         private static Func<Tables> s_tables;                  // 装配期绑定：ProcedureLaunch 调 Bind，不碰容器
-        private static IUILuaRegistry s_ui;
-        private static IContentLuaRegistry s_content;
+        private static IUILuaRegistry s_uiRegistry;
+        private static IContentLuaRegistry s_contentRegistry;
+        private static UIService s_uiService;
 
         /// <summary>绑定查表入口（经 IConfigService.Tables；未加载时其 Tables 访问器会抛）。</summary>
         public static void Bind(Func<Tables> tables)
@@ -25,8 +27,14 @@ namespace LiteGame
         /// <summary>装配期注入注册表（ProcedureLaunch Seal 前调用；ui/content 骨架门面的查询底座）。</summary>
         public static void BindRegistries(IUILuaRegistry ui, IContentLuaRegistry content)
         {
-            s_ui = ui ?? throw new ArgumentNullException(nameof(ui));
-            s_content = content ?? throw new ArgumentNullException(nameof(content));
+            s_uiRegistry = ui ?? throw new ArgumentNullException(nameof(ui));
+            s_contentRegistry = content ?? throw new ArgumentNullException(nameof(content));
+        }
+
+        /// <summary>装配期注入 UI 壳（ProcedureLaunch Seal 前调用；真实门面 Show/Close/IsOpen 的后端）。</summary>
+        public static void BindUIService(UIService uiService)
+        {
+            s_uiService = uiService ?? throw new ArgumentNullException(nameof(uiService));
         }
 
         private static Tables Tables() => s_tables();
@@ -88,18 +96,36 @@ namespace LiteGame
             }
         }
 
-        /// <summary>ui 骨架门面（M3 最小集：注册表查询入口——真实语义等 M4 UI 壳，不过度设计）。</summary>
+        /// <summary>ui 门面（M4 §2.3 真实语义，§1g 定案）：Show/Close/IsOpen(id)——**Lua 不碰 GameObject**。
+        /// Show 为 fire-and-forget（Lua 无 await），错误经日志观测（异步观测纪律见 M4 实施记录）。</summary>
         public static class Ui
         {
-            /// <summary>界面 id → uiform 行 LuaPath → UI 注册表逻辑表。未注册抛（fail-fast，§3.4）。</summary>
-            public static LuaTable GetLogic(int id) => s_ui.Get(Data.GetUIForm(id).LuaPath);
+            /// <summary>打开界面：id → tbuiform 行；data 为 Lua 表（包装成 LuaUIData 传入生命周期）。</summary>
+            public static void Show(int id, LuaTable data)
+            {
+                var aw = s_uiService.ShowAsync(id, data == null ? null : new LuaUIData(data)).GetAwaiter();
+                aw.OnCompleted(() =>
+                {
+                    try { aw.GetResult(); }
+                    catch (Exception ex) { Log.Error($"Bridge.ui.Show[{id}]:{ex.Message}", "UI"); }
+                });
+            }
+
+            /// <summary>关闭界面（经出栈拦截 + 离场转场）。</summary>
+            public static void Close(int id) => s_uiService.CloseAsync(id);
+
+            /// <summary>是否打开（Active/Covered/Paused 任一）。</summary>
+            public static bool IsOpen(int id) => s_uiService.IsOpen(id);
+
+            /// <summary>界面 id → 逻辑表查询（M3 骨架口保留；适配器链路经 UIService 解析器，不常走此口）。</summary>
+            public static LuaTable GetLogic(int id) => s_uiRegistry.Get(Data.GetUIForm(id).LuaPath);
         }
 
         /// <summary>content 骨架门面（M3 最小集：注册表查询入口）。</summary>
         public static class Content
         {
             /// <summary>内容条目 id → Entry → Content 注册表处理器表。</summary>
-            public static LuaTable GetProcessor(int id) => s_content.Get(Data.GetContentEntry(id).Entry);
+            public static LuaTable GetProcessor(int id) => s_contentRegistry.Get(Data.GetContentEntry(id).Entry);
         }
     }
 }

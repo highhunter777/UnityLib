@@ -53,6 +53,7 @@ namespace LiteGame
 
                 Bridge.Bind(() => _config.Tables);       // 服务桥装配期绑定（M2 C# 骨架，M3 绑成 Lua 全局表）
                 Bridge.BindRegistries(_uiRegistry, _contentRegistry);   // ui/content 骨架门面查询底座（§2.5）
+                Bridge.BindUIService(_ui);               // 真实门面 Show/Close/IsOpen 后端（M4 §2.3）
 
                 fsm.ChangeState<ProcedurePreload>();
             }
