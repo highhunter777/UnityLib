@@ -35,7 +35,8 @@ namespace LiteGame
 
     /// <summary>
     /// 默认转场：淡入淡出 + 轻位移（灰盒版，动效方案附 A.2 形态）。
-    /// 本工程 DOTween 为核心 DLL 导入（无 UI Modules）——CanvasGroup 透明度/锚点位移走 DOTween.To 泛型。
+    /// UI 模块扩展（CanvasGroup.DOFade / DOAnchorPos 系）经 DOTween.Modules asmdef 接入
+    /// （Modules 源文件由 firstpass 挪入独立程序集，2026-09-13）。
     /// 离场先关交互（blocksRaycasts=false）防连点；tween 随界面禁用自动销毁（KillOnDisable）。
     /// </summary>
     public sealed class FadeSlideTransition : ITransitionStrategy
@@ -45,15 +46,9 @@ namespace LiteGame
             var cg = form.CanvasGroup;
             cg.blocksRaycasts = false;
             var seq = BuildBase(form);
-            seq.Join(DOTween.To(() => cg.alpha, v => cg.alpha = v, 1f, 0.25f).From(0f));
-            var rt = form.Root.transform as RectTransform;
-            if (rt != null)
-            {
-                var end = rt.anchoredPosition;
-                rt.anchoredPosition = end + new Vector2(0f, 40f);
-                seq.Join(DOTween.To(() => rt.anchoredPosition, v => rt.anchoredPosition = v, end, 0.25f)
-                    .SetEase(Ease.OutQuad));
-            }
+            seq.Join(cg.DOFade(1f, 0.25f).From(0f));
+            if (form.Root.transform is RectTransform rt)
+                seq.Join(rt.DOAnchorPosY(40f, 0.25f).From(true).SetEase(Ease.OutQuad));
             seq.OnComplete(() => cg.blocksRaycasts = true);
             return ToTask(seq);
         }
@@ -63,7 +58,7 @@ namespace LiteGame
             var cg = form.CanvasGroup;
             cg.blocksRaycasts = false;
             var seq = BuildBase(form);
-            seq.Join(DOTween.To(() => cg.alpha, v => cg.alpha = v, 0f, 0.2f).SetEase(Ease.InQuad));
+            seq.Join(cg.DOFade(0f, 0.2f).SetEase(Ease.InQuad));
             return ToTask(seq);
         }
 
