@@ -41,8 +41,9 @@ namespace LiteGame
             Log.Info("UI 壳就绪:层级组 Bottom/Window/Top", "UI");
         }
 
-        /// <summary>打开界面（幂等：已 Active 直接返回；池中复用不重跑 OnInit）。全屏界面激活后重算遮盖。</summary>
-        public async UniTask<UIForm> ShowAsync(int formId, object data = null, CancellationToken ct = default)
+        /// <summary>打开界面（幂等：已 Active 直接返回；池中复用不重跑 OnInit）。全屏界面激活后重算遮盖。
+        /// 数据传参收口 <see cref="IUIData"/>（禁 object，2026-09-13 修订）。</summary>
+        public async UniTask<UIForm> ShowAsync(int formId, IUIData data = null, CancellationToken ct = default)
         {
             var info = _catalog.Get(formId);
             var group = GetGroup(info.Layer);
@@ -128,7 +129,7 @@ namespace LiteGame
             return form;
         }
 
-        private void Reuse(UIForm form, UILayerGroup group, object data)
+        private void Reuse(UIForm form, UILayerGroup group, IUIData data)
         {
             form.EnterActiveFromRecycled(data);
             group.Stack.Push(form);
