@@ -78,7 +78,7 @@ namespace BindCodeGen.EditorTools
             var designerPath = folder + "/" + className + ".Designer.cs";
 
             var mainContent = BindTemplates.BuildMainFile(className, ns, root.BaseClassFullName);
-            var designerContent = BindTemplates.BuildDesignerFile(className, ns, marks);
+            var designerContent = BindTemplates.BuildDesignerFile(className, ns, marks, root.BaseClassFullName);
 
             EnsureFolderExists(folder);
 
