@@ -35,6 +35,8 @@ namespace LiteGame
         private readonly Dictionary<int, EntityHandle> _active = new Dictionary<int, EntityHandle>(16);
         private readonly HashSet<int> _inFlight = new HashSet<int>();           // 加载在途
         private readonly HashSet<int> _releaseOnLoad = new HashSet<int>();      // 加载竞态表
+        private readonly Dictionary<int, int> _parentOf = new Dictionary<int, int>(8);                        // 挂接：child → parent
+        private readonly Dictionary<int, List<int>> _attachments = new Dictionary<int, List<int>>(8);         // 挂接：parent → [child]（容器可枚举）
         private int _nextHandle = 1;
 
         /// <summary>预占句柄（竞态场景用：先 Reserve → ShowAsync(id) → 任意时刻 Hide(id)）。</summary>
@@ -86,14 +88,76 @@ namespace LiteGame
             }
         }
 
-        /// <summary>隐藏实体：活跃 → 通用池回收（OnRecycle + 隐藏 + 归桶）；加载在途 → 竞态表；未知句柄告警忽略。</summary>
+        /// <summary>
+        /// 挂接（Attach/Detach 行为契约，M4 实施记录 2026-09-13 三语义定案）：
+        /// child 挂到 parent 的命名锚点（锚点 = parent 实体内空 Transform，美术摆位；null = parent 根）。
+        /// ① 宿主回收连锁收子件（Hide(parent) → 子件递归 Detach + Hide，归各自池——挂接件泄漏机制上不可发生）；
+        /// ② Detach 与 Hide 分离（Detach = 脱离挂接保持显示；回收另走 Hide）；
+        /// ③ 允许挂接链（武器→手→角色），容器只记直接父子；**不提供树遍历/子树查询 API**（查询归玩法——
+        ///    Transform 原生可查；壳内递归仅为回收连锁的安全网，不对外暴露）。
+        /// 自挂/成环抛（防回收递归死循环）；child 已挂他处 = 隐式脱离转移。
+        /// </summary>
+        public void Attach(int childHandle, int parentHandle, string anchor = null, bool keepWorld = false)
+        {
+            if (childHandle == parentHandle)
+                throw new InvalidOperationException($"实体 {childHandle} 不可挂接自身");
+            if (!_active.TryGetValue(childHandle, out var child))
+                throw new KeyNotFoundException($"挂接 child 未找到:{childHandle}");
+            if (!_active.TryGetValue(parentHandle, out var parent))
+                throw new KeyNotFoundException($"挂接 parent 未找到:{parentHandle}");
+
+            for (var up = parentHandle; _parentOf.TryGetValue(up, out var grand); up = grand)
+                if (grand == childHandle)
+                    throw new InvalidOperationException(
+                        $"挂接成环:{childHandle} 是 {parentHandle} 的祖先——回收连锁会死循环（§3.4 fail-fast）");
+
+            Transform anchorT = parent.GameObject.transform;
+            if (!string.IsNullOrEmpty(anchor))
+            {
+                anchorT = anchorT.Find(anchor);
+                if (anchorT == null)
+                    throw new InvalidOperationException($"挂接锚点不存在:{anchor}（核对 prefab 挂点节点）");
+            }
+
+            if (_parentOf.Remove(childHandle, out var old))
+                if (_attachments.TryGetValue(old, out var oldList)) oldList.Remove(childHandle);
+
+            child.GameObject.transform.SetParent(anchorT, keepWorld);
+            if (!keepWorld)
+            {
+                child.GameObject.transform.localPosition = Vector3.zero;
+                child.GameObject.transform.localRotation = Quaternion.identity;
+            }
+
+            _parentOf[childHandle] = parentHandle;
+            if (!_attachments.TryGetValue(parentHandle, out var list))
+                _attachments[parentHandle] = list = new List<int>(4);
+            list.Add(childHandle);
+            Log.Info($"实体[{childHandle}] 挂接至 [{parentHandle}]{(anchor != null ? "@" + anchor : "")}", "Entity");
+        }
+
+        /// <summary>脱离挂接（幂等）：脱离父级、保留世界位姿、保持显示——回收另走 Hide。</summary>
+        public void Detach(int childHandle)
+        {
+            if (!_parentOf.Remove(childHandle, out var parent)) return;    // 未挂接：幂等
+            if (_attachments.TryGetValue(parent, out var list)) list.Remove(childHandle);
+            if (_active.TryGetValue(childHandle, out var child))
+                child.GameObject.transform.SetParent(null, true);          // 世界位姿保留
+            Log.Info($"实体[{childHandle}] 已脱离挂接", "Entity");
+        }
+
+        /// <summary>容器可枚举：宿主的直接挂件（只读快照）。</summary>
+        public IReadOnlyList<int> GetAttachments(int parentHandle)
+            => _attachments.TryGetValue(parentHandle, out var list)
+                ? (IReadOnlyList<int>)list.ToArray()
+                : Array.Empty<int>();
+
+        /// <summary>隐藏实体：连锁收子件 → 脱离父容器 → 回收。加载在途 → 竞态表；未知句柄告警忽略。</summary>
         public void Hide(int handleId)
         {
             if (_active.TryGetValue(handleId, out var handle))
             {
-                _pool.Release(handle.GameObject);
-                _active.Remove(handleId);
-                Log.Info($"实体[{handleId}] 回收（{handle.Location}，池中 {_pool.PooledTotal}）", "Entity");
+                HideInternal(handleId);
                 return;
             }
             if (_inFlight.Contains(handleId))
@@ -104,6 +168,32 @@ namespace LiteGame
             Log.Warning($"实体[{handleId}] 未知句柄——Hide 忽略", "Entity");
         }
 
+        /// <summary>回收连锁（内部）：① 递归收子件（子件的子件递归；容器随递归变动，拷贝遍历）
+        /// → ② 脱离父容器登记 → ③ 池回收自身（OnRecycle + 隐藏 + 归桶）。
+        /// 顺序：子件先收（父 OnRecycle 执行时身上已空）、回收传播为生命周期安全网而非树操作。</summary>
+        private void HideInternal(int handleId)
+        {
+            if (_attachments.TryGetValue(handleId, out var children))
+            {
+                _attachments.Remove(handleId);
+                var copy = new List<int>(children);
+                foreach (var childId in copy)
+                {
+                    _parentOf.Remove(childId);
+                    HideInternal(childId);
+                }
+            }
+            if (_parentOf.TryGetValue(handleId, out var parentHandle))
+            {
+                _parentOf.Remove(handleId);
+                if (_attachments.TryGetValue(parentHandle, out var list)) list.Remove(handleId);
+            }
+            var handle = _active[handleId];
+            _pool.Release(handle.GameObject);
+            _active.Remove(handleId);
+            Log.Info($"实体[{handleId}] 回收（连锁含子件）", "Entity");
+        }
+
         public string StatsName => "Entity";
 
         public void Snapshot(Dictionary<string, string> into)
@@ -112,6 +202,7 @@ namespace LiteGame
             into["加载中"] = _inFlight.Count.ToString();
             into["池中"] = _pool.PooledTotal.ToString();
             into["竞态表"] = _releaseOnLoad.Count.ToString();
+            into["挂接"] = _parentOf.Count.ToString();
         }
     }
 }
