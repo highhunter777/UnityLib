@@ -15,9 +15,16 @@ namespace LiteGame.UI
         public int Value => _value;
         public event Action<int> OnChanged;
 
+        private void Awake()
+        {
+            // 运行时 AddComponent 先于字段赋值——Stars 尚为 null，跳过首刷（Set 时再刷）
+            if (Stars != null && Stars.Length > 0) Apply();
+        }
+
         /// <summary>设置星级（0~Stars.Length，超界钳制；静默同值）。</summary>
         public void Set(int value)
         {
+            if (Stars == null || Stars.Length == 0) return;
             value = Mathf.Clamp(value, 0, Stars.Length);
             if (_value == value) return;
             _value = value;
@@ -27,11 +34,10 @@ namespace LiteGame.UI
 
         private void Apply()
         {
+            if (Stars == null) return;
             for (int i = 0; i < Stars.Length; i++)
                 if (Stars[i] != null) Stars[i].color = i < _value ? OnColor : OffColor;
         }
-
-        private void Awake() => Apply();
     }
 
     /// <summary>数值滚动文本（M4c）：CountUp 原语驱动，format 自定义（金币/伤害数字）。</summary>

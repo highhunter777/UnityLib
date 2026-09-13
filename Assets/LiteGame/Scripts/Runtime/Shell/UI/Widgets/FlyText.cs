@@ -1,3 +1,4 @@
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
@@ -36,23 +37,26 @@ namespace LiteGame.UI
 
         private IEnumerator FlyRoutine(RectTransform rt, Text label)
         {
+            // 淡出走 Text.color 透明度（纯属性——不依赖 CanvasGroup 组件增删，
+            // 规避特定编辑器状态下组件变更静默失效的 MissingComponentException）
+            var baseColor = label.color;
             var start = rt.anchoredPosition;
-            var canvasGroup = label.GetComponent<CanvasGroup>() ?? label.gameObject.AddComponent<CanvasGroup>();
-            canvasGroup.alpha = 1f;
             float t = 0f;
             while (t < Duration)
             {
                 if (label == null || rt == null) yield break;   // 宿主销毁（play 退出/界面回收）安全退出
                 t += Time.unscaledDeltaTime;
                 float k = Mathf.Clamp01(t / Duration);
+                var c = label.color;
+                c.a = baseColor.a * (1f - k);
+                label.color = c;
                 rt.anchoredPosition = start + Vector2.up * (RiseDistance * k);
-                canvasGroup.alpha = 1f - k;
                 yield return null;
             }
             if (label != null)
             {
                 label.gameObject.SetActive(false);
-                canvasGroup.alpha = 1f;
+                label.color = baseColor;
             }
             if (_pool.Count < PoolDepth) _pool.Push(label);
             else Destroy(label.gameObject);
