@@ -36,6 +36,16 @@ namespace LiteGame
         /// <summary>main.lua 是否已执行（DevReload 重跑前必为 true，§2.7）。</summary>
         public bool MainExecuted => _mainExecuted;
 
+        /// <summary>LuaEnv 访问器（装配期只读——LuaBehaviourAdapter 构建 ui-API 表用；未初始化访问抛）。</summary>
+        public LuaEnv Env
+        {
+            get
+            {
+                ThrowIfNotInit();
+                return _env;
+            }
+        }
+
         /// <summary>初始化 env + 注册自定义 loader + 绑定服务桥/事件桥（AddComponent 后调用一次；重复调用抛）。</summary>
         public void Init(LuaPreloader preloader, IEventCenter eventCenter)
         {
