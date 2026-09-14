@@ -8,10 +8,11 @@ namespace BindCodeGen.EditorTools
 {
     public static class BindMenus
     {
-        private const string RootMenuPath = "GameObject/BindCodeGen/添加 BindRoot(生成根)";
-        private const string BindMenuPath = "GameObject/BindCodeGen/添加 BindNode 标记";
-        private const string AssetMenuPath = "Assets/BindCodeGen/生成绑定代码";
-        private const string ContextBindPath = "CONTEXT/Transform/BindCodeGen/添加 BindNode 标记";
+        // 菜单统一收口到 LiteGame（2026-09-14）：与 LiteGame/UI 下其他工具（构建/校验控件模板、Widget Demo）同处一级
+        private const string RootMenuPath = "LiteGame/UI/绑定/添加 BindRoot（生成根）";
+        private const string BindMenuPath = "LiteGame/UI/绑定/添加 BindNode 标记";
+        private const string AssetMenuPath = "LiteGame/UI/绑定/生成绑定代码";
+        private const string ContextBindPath = "CONTEXT/Transform/LiteGame/添加 BindNode 标记";
 
         // ---------------- 场景/层级菜单 ----------------
 
