@@ -41,8 +41,8 @@ namespace LiteGame.UI
                 .SetLink(rt.gameObject, LinkBehaviour.KillOnDisable);
         }
 
-        /// <summary>数值滚动（CountUp）：UGUI Text 版——format 为格式化委托（如 v => ((int)v).ToString()）。</summary>
-        public static Tweener CountUp(Text label, float from, float to, float duration, System.Func<float, string> format)
+        /// <summary>数值滚动（CountUp）：**TMP 版**（2026-09-14 TMP 迁移）——format 为格式化委托（如 v => ((int)v).ToString()）。</summary>
+        public static Tweener CountUp(TMPro.TMP_Text label, float from, float to, float duration, System.Func<float, string> format)
         {
             return DOTween.To(() => from, v =>
                 {
