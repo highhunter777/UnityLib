@@ -44,3 +44,37 @@ Thumbs.db
 
 # ===== ZCode 工作区配置（本机端口，不共享）=====
 .zcode/
+
+# ===== 美术/素材资源（仅 demo、资源不入库；如需备份请显式 git add -f 添加）=====
+# 说明：本项目仅作 demo（不商用），第三方素材包与美术资源一律不入库——
+#       仓库只保留自研框架代码、预制品与文档；下方目录如需入库请用 `git add -f <路径>`。
+Assets/Art/
+Assets/Art.meta
+Assets/Map/
+Assets/Map.meta
+Assets/Animation/
+Assets/Animation.meta
+Assets/FX/
+Assets/FX.meta
+Assets/Model/
+Assets/Model.meta
+Assets/Sound/
+Assets/Sound.meta
+Assets/LiteGame/Fonts/
+Assets/LiteGame/Fonts.meta
+Assets/LiteGame/Art/
+Assets/LiteGame/Art.meta
+Assets/GameFramework/
+Assets/GameFramework.meta
+Assets/GameMain/
+Assets/GameMain.meta
+Assets/TutorialInfo/
+Assets/TutorialInfo.meta
+Assets/Settings/
+Assets/Settings.meta
+Assets/Prefab/
+Assets/Prefab.meta
+Assets/Animator/
+Assets/Animator.meta
+Assets/StateMachine/
+Assets/StateMachine.meta

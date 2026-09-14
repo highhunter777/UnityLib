@@ -31,7 +31,7 @@ namespace LiteGame
     /// </summary>
     public sealed class LuaBehaviourAdapter : IUIFormLogic
     {
-        /// <summary>ui-API 通用派发方法名（payload 表协议见 Dispatch）。</summary>
+        /// <summary>ui-API 通用派发方法名（payload 表协议见 Dispatch；批⑦ 已补 G1/G3/G7/G10）。</summary>
         private const string UiApiShim = @"
 local c = __ui_api_c
 __ui_api_c = nil
@@ -41,6 +41,14 @@ return {
     SetText = function(_, name, text) c('setText', { name = name, text = text }) end,
     SetVisible = function(_, name, visible) c('setVisible', { name = name, visible = visible }) end,
     SetInteractable = function(_, name, on) c('setInteractable', { name = name, on = on }) end,
+    SetProgress = function(_, name, value) c('setProgress', { name = name, value = value }) end,
+    SetProgressRange = function(_, name, cur, max) c('setProgressRange', { name = name, cur = cur, max = max }) end,
+    SetHp = function(_, name, cur, max) c('setHp', { name = name, cur = cur, max = max }) end,
+    StartCountdown = function(_, name, seconds) c('startCountdown', { name = name, seconds = seconds }) end,
+    StopCountdown = function(_, name) c('stopCountdown', { name = name }) end,
+    ShowToast = function(_, text) c('showToast', { text = text }) end,
+    ShowBubble = function(_, name, text, duration) c('showBubble', { name = name, text = text, duration = duration or 1.5 }) end,
+    ShowFlyText = function(_, name, text) c('showFlyText', { name = name, text = text }) end,
 }";
 
         private readonly LuaEnv _env;
@@ -91,24 +99,36 @@ return {
         }
 
         /// <summary>ui-API 通用派发（payload 表协议）：onButton{name,fn} / offButton{name} /
-        /// setText{name,text} / setVisible{name,visible} / setInteractable{name,on}。未识别方法静默忽略。</summary>
+        /// setText{name,text} / setVisible{name,visible} / setInteractable{name,on} /
+        /// setProgress{name,value} / setProgressRange{name,cur,max} / setHp{name,cur,max} /
+        /// startCountdown{name,seconds} / stopCountdown{name} / showToast{text} /
+        /// showBubble{name,text,duration} / showFlyText{name,text}。未识别方法静默忽略。</summary>
         private void Dispatch(string method, LuaTable payload)
         {
             if (_index == null || payload == null) return;
             switch (method)
             {
                 case "onButton":
-                    var name = payload.Get<string>("name");
+                    var name = payload.Get<string, string>("name");
                     _index.BindButton(name, () =>
                     {
                         var fn = payload.Get<LuaFunction>("fn");
                         if (fn != null) fn.Call();
                     });
                     break;
-                case "offButton": _index.UnbindButton(payload.Get<string>("name")); break;
-                case "setText": _index.SetText(payload.Get<string>("name"), payload.Get<string>("text")); break;
-                case "setVisible": _index.SetVisible(payload.Get<string>("name"), payload.Get<bool>("visible")); break;
-                case "setInteractable": _index.SetInteractable(payload.Get<string>("name"), payload.Get<bool>("on")); break;
+                case "offButton": _index.UnbindButton(payload.Get<string, string>("name")); break;
+                case "setText": _index.SetText(payload.Get<string, string>("name"), payload.Get<string, string>("text")); break;
+                case "setVisible": _index.SetVisible(payload.Get<string, string>("name"), payload.Get<string, bool>("visible")); break;
+                case "setInteractable": _index.SetInteractable(payload.Get<string, string>("name"), payload.Get<string, bool>("on")); break;
+                // ---- 批⑦ 扩展 ----
+                case "setProgress": _index.SetProgress(payload.Get<string, string>("name"), payload.Get<string, float>("value")); break;
+                case "setProgressRange": _index.SetProgress(payload.Get<string, string>("name"), payload.Get<string, float>("cur"), payload.Get<string, float>("max")); break;
+                case "setHp": _index.SetHp(payload.Get<string, string>("name"), payload.Get<string, float>("cur"), payload.Get<string, float>("max")); break;
+                case "startCountdown": _index.StartCountdown(payload.Get<string, string>("name"), payload.Get<string, float>("seconds")); break;
+                case "stopCountdown": _index.StopCountdown(payload.Get<string, string>("name")); break;
+                case "showToast": _index.ShowToast(payload.Get<string, string>("text")); break;
+                case "showBubble": _index.ShowBubble(payload.Get<string, string>("name"), payload.Get<string, string>("text"), payload.Get<string, float>("duration")); break;
+                case "showFlyText": _index.ShowFlyText(payload.Get<string, string>("name"), payload.Get<string, string>("text")); break;
             }
         }
 

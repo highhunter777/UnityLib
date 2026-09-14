@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Cysharp.Threading.Tasks;
 using LiteFramework;
 using XLua;
 using cfg;
@@ -111,8 +112,8 @@ namespace LiteGame
                 });
             }
 
-            /// <summary>关闭界面（经出栈拦截 + 离场转场）。</summary>
-            public static void Close(int id) => s_uiService.CloseAsync(id);
+            /// <summary>关闭界面（经出栈拦截 + 离场转场）。fire-and-forget 显式化（CS4014 收口）。</summary>
+            public static void Close(int id) => s_uiService.CloseAsync(id).Forget();
 
             /// <summary>是否打开（Active/Covered/Paused 任一）。</summary>
             public static bool IsOpen(int id) => s_uiService.IsOpen(id);

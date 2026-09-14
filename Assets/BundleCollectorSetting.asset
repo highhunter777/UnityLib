@@ -25,19 +25,6 @@ MonoBehaviour:
     AutoCollectShaders: 1
     IgnoreRuleName: LiteGameIgnoreRule
     Groups:
-    - GroupName: GameMain
-      GroupDesc: 
-      AssetTags: 
-      ActiveRuleName: EnableGroup
-      Collectors:
-      - CollectPath: Assets/GameMain/Configs
-        CollectorGUID: 
-        CollectorType: 0
-        AddressRuleName: AddressByFileName
-        PackRuleName: PackDirectory
-        FilterRuleName: CollectAll
-        AssetTags: 
-        UserData: 
     - GroupName: LiteGameScenes
       GroupDesc: "\u573A\u666F\uFF08\u5355\u573A\u666F\u5207\u6362 + \u53E0\u52A0\u52A0\u8F7D\uFF0CSceneService
         \u6D88\u8D39\uFF09"
@@ -80,7 +67,8 @@ MonoBehaviour:
         AssetTags: lua
         UserData: 
     - GroupName: LiteGameUI
-      GroupDesc: "UI 界面 prefab（M4 —— PackSeparately 单界面单包体支撑热更粒度，tag ui）"
+      GroupDesc: "UI \u754C\u9762 prefab\uFF08M4 \u2014\u2014 PackSeparately \u5355\u754C\u9762\u5355\u5305\u4F53\u652F\u6491\u70ED\u66F4\u7C92\u5EA6\uFF0Ctag
+        ui\uFF09"
       AssetTags: 
       ActiveRuleName: EnableGroup
       Collectors:

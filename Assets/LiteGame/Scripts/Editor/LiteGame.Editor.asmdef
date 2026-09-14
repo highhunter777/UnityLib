@@ -9,7 +9,10 @@
 		"UniTask",
 		"xLuaMain",
 		"YooAsset",
-		"YooAsset.Editor"
+		"YooAsset.Editor",
+		"BindCodeGen.Runtime",
+		"BindCodeGen.Editor",
+		"Unity.TextMeshPro"
 	],
 	"includePlatforms": [
 		"Editor"

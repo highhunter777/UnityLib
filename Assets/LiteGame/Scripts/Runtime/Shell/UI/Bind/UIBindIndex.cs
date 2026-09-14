@@ -105,11 +105,79 @@ namespace LiteGame
             Get<Component>(name).gameObject.SetActive(visible);
         }
 
+        /// <summary>可交互开关。**G1 修正（2026-09-14，实测定案）**：`Selectable` 优先，回退 `UIWidget.Interactable`
+        /// ——`StateButton`/`RedDot` 等自持交互语义的控件不是 Selectable，旧实现会抛（《UI控件Lua用法表》G1）。</summary>
         public void SetInteractable(string name, bool on)
         {
             MarkDriver(name, ControlDriver.Command);
             if (TryGet<Selectable>(name, out var sel)) { sel.interactable = on; return; }
-            throw new InvalidOperationException($"绑定索引[{name}] 无 Selectable 组件");
+            if (TryGet<UIWidget>(name, out var widget)) { widget.Interactable = on; return; }
+            throw new InvalidOperationException($"绑定索引[{name}] 无 Selectable / UIWidget 组件（无法设置可交互）");
+        }
+
+        // ---- 批⑦ 受控 API 扩展（P0，《UI控件Lua用法表》G3/G7/G10）----
+
+        /// <summary>进度条：归一化值（0~1）。G7。</summary>
+        public void SetProgress(string name, float value01)
+        {
+            MarkDriver(name, ControlDriver.Command);
+            Get<ProgressBar>(name).Set(value01);
+        }
+
+        /// <summary>进度条：当前/上限。G7。</summary>
+        public void SetProgress(string name, float current, float max)
+        {
+            MarkDriver(name, ControlDriver.Command);
+            Get<ProgressBar>(name).Set(current, max);
+        }
+
+        /// <summary>血条（前条瞬时 + 后条延迟滑落）。G7。</summary>
+        public void SetHp(string name, float current, float max)
+        {
+            MarkDriver(name, ControlDriver.Command);
+            Get<HpBar>(name).Set(current, max);
+        }
+
+        /// <summary>倒计时启动。G10。</summary>
+        public void StartCountdown(string name, float seconds)
+        {
+            MarkDriver(name, ControlDriver.Command);
+            Get<Countdown>(name).StartCountdown(seconds);
+        }
+
+        /// <summary>倒计时停止（不触发 OnDone）。G10。</summary>
+        public void StopCountdown(string name)
+        {
+            MarkDriver(name, ControlDriver.Command);
+            Get<Countdown>(name).Stop();
+        }
+
+        /// <summary>轻提示（Toast 单例；**场景无 ToastHost 时记日志不抛**——提示不是关键路径）。G3。</summary>
+        public void ShowToast(string text)
+        {
+            var toast = Toast.Instance;
+            if (toast == null)
+            {
+                Log.Warning($"ShowToast 无 Toast 实例（场景未挂 ToastHost）:{text}", "UI");
+                return;
+            }
+            toast.Show(text);
+        }
+
+        /// <summary>气泡（挂点旁短提示）。G3。</summary>
+        public void ShowBubble(string name, string text, float duration)
+        {
+            MarkDriver(name, ControlDriver.Command);
+            Get<UIBubble>(name).Show(text, duration);
+        }
+
+        /// <summary>飘字（位置取控件自身 anchoredPosition——界面侧把飘字锚点摆好即可）。G3。</summary>
+        public void ShowFlyText(string name, string text)
+        {
+            MarkDriver(name, ControlDriver.Command);
+            var pool = Get<FlyTextPool>(name);
+            var rt = pool.transform as RectTransform;
+            pool.Show(text, rt != null ? rt.anchoredPosition : Vector2.zero);
         }
 
         public void SetAnchoredPosition(string name, Vector2 pos)
@@ -133,4 +201,3 @@ namespace LiteGame
         }
     }
 }
-

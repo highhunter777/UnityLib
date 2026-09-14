@@ -80,7 +80,7 @@ end";
             int n = list.Length;
             for (int i = 1; i <= n; i++)
             {
-                var fn = list.Get<LuaFunction>(i);
+                var fn = list.Get<int, LuaFunction>(i);
                 if (fn == null) continue;
                 var index = i;
                 SafeCall.Invoke(() => fn.Call(args), $"event[{luaEvent}]#{index}");
