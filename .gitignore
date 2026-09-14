@@ -78,3 +78,13 @@ Assets/Animator/
 Assets/Animator.meta
 Assets/StateMachine/
 Assets/StateMachine.meta
+
+# ===== 工程配置与工具链（不入库；克隆后自备清单见 Docs/克隆后自备清单.md）=====
+# 说明：仓库只保留自研框架代码/预制品/文档。以下为工程配置与本地工具链：
+#       ProjectSettings（Unity 工程设置，缺失则无法直接打开工程）、Luban（表源+生成器）、
+#       Tools（XLua 工具）、Packages/MCPForUnity（编辑器自动化桥，远端 Packages 只留 manifest/lock）。
+#       如需入库请显式 `git add -f <路径>`。
+ProjectSettings/
+Luban/
+Tools/
+Packages/MCPForUnity/
