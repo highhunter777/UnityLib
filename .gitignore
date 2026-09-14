@@ -88,3 +88,28 @@ ProjectSettings/
 Luban/
 Tools/
 Packages/MCPForUnity/
+
+# ===== 第三方插件（不入库；自研代码依赖它们，克隆后自备）=====
+# Demigiant= DOTween（远端已跟踪其部分文件，此处忽略未入库的发行文件）；
+# Sirenix = Odin Inspector（付费授权，不可再分发）；UniRx / VContainer = 本地依赖。
+Assets/Plugins/Demigiant/
+Assets/Plugins/Demigiant.meta
+Assets/Plugins/Sirenix/
+Assets/Plugins/Sirenix.meta
+Assets/Plugins/UniRx/
+Assets/Plugins/UniRx.meta
+Assets/Plugins/VContainer/
+Assets/Plugins/VContainer.meta
+
+# ===== 本机/非框架项（不入库；如需入库请 git add -f）=====
+# 说明：仓库只保留自研框架代码/预制品/文档与远端既有范围（origin/LiteGame）。
+Assets/Readme.asset
+Assets/Readme.asset.meta
+Assets/Resources/
+Assets/Resources.meta
+Assets/Scenes/
+Assets/Scenes.meta
+Assets/StreamingAssets.meta
+Assets/UniversalRenderPipelineGlobalSettings.asset
+Assets/UniversalRenderPipelineGlobalSettings.asset.meta
+.vsconfig
