@@ -5,7 +5,9 @@ using System.Collections.Generic;
 
 namespace LiteFramework
 {
-    public sealed class LuaRegistry<T> : ILuaRegistry<T>
+    /// 开放继承（M3 §2.4）：业务侧以空子类 + 标记接口对三注册表作类型化区分（容器按 Type 键控）；
+    /// 子类不得重写行为（仅构造传 kind）。
+    public class LuaRegistry<T> : ILuaRegistry<T>
     {
         private readonly string _kind;    // "UI" / "Content" / "Strategies"——报错信息的路径约定提示用
         private readonly Dictionary<string, T> _items = new(StringComparer.Ordinal);  // key 大小写敏感, culturally 稳定
@@ -33,5 +35,13 @@ namespace LiteFramework
         }
 
         public bool Has(string name) => name != null && _items.ContainsKey(name);
+
+        /// <summary>DevReload 重填前置（§2.7）：旧逻辑表全弃。Generation 前进一位作失效纪元——
+        /// 重填即使逐项同名，消费方也能凭 Generation 变化感知到"实例已换"。幂等。</summary>
+        public void Clear()
+        {
+            if (_items.Count > 0) Generation++;
+            _items.Clear();
+        }
     }
 }
