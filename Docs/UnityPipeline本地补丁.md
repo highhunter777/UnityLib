@@ -21,7 +21,7 @@
 
 | # | 文件 | 改动 | 原因 |
 | --- | --- | --- | --- |
-| 1 | `Runtime/Plugins/CodeAnalysis/*.dll.meta`（5 个）与 `Runtime/Analyzers/IlInterpreterAnalyzer.dll.meta` | 平台兼容修正（meta 被 Unity 重写） | 上游 meta 用 `serializedVersion: 3`（Unity 6 格式），**2022.3 误读为全平台禁用**（`GetCompatibleWithEditor()=False`）→ 插件 DLL 未生效 → `IlInterpreter` 找不到 `UnityPipeline.*` 命名空间。修正方式：`PluginImporter.SetCompatibleWithEditor(true) + SaveAndReimport()` |
+| 1 | `Runtime/Plugins/CodeAnalysis/*.dll.meta`（5 个）与 `Runtime/Analyzers/IlInterpreterAnalyzer.dll.meta` | **转为 2022.3 原生 v2 格式**（`serializedVersion: 2`）+ 平台对齐（**Editor ✓ / Standalone Win·Win64·Linux64·OSX ✓**） | 上游 meta 用 `serializedVersion: 3`（Unity 6 格式），**2022.3 误读为全平台禁用**（`GetCompatibleWithEditor()=False`）→ 插件 DLL 未生效 → `IlInterpreter` 找不到 `UnityPipeline.*` 命名空间。修法：`PluginImporter.SetCompatibleWithEditor(true)` + `SetCompatibleWithPlatform(Standalone…)` + `SaveAndReimport()` —— Unity 随之把 meta **重写为 v2 格式**（已核验 6/6 均为 `serializedVersion: 2`，Editor/Win64 兼容均为 ✓） |
 | 2 | `Tests/` → **`Tests~`** | 重命名目录 | 包自带测试程序集引用 nunit.framework，2022.3 下解析失败；`~` 后缀被 Unity 忽略（源码保留） |
 | 3 | **新增** `Editor/AnalyticInfoCompat_2022.cs` | `#if !UNITY_6000_0_OR_NEWER` 下提供 `UnityEngine.Analytics.IAnalytic`（含嵌套 `IData`）与 `AnalyticInfoAttribute` | 这两个类型是 Unity 6 新增，2022.3 编辑器内**不存在**（实测全程序集扫描为 0） |
 | 4 | `Editor/PipelineAnalytics.cs` | `s_Send` 在 2022.3 下置空（`analytic => { }`） | 2022.3 的 `EditorAnalytics` 只有 `SendEventWithLimit` 系列，**没有 `SendAnalytic(IAnalytic)`** |
