@@ -113,3 +113,6 @@ Assets/StreamingAssets.meta
 Assets/UniversalRenderPipelineGlobalSettings.asset
 Assets/UniversalRenderPipelineGlobalSettings.asset.meta
 .vsconfig
+
+# ===== 本地留档（个人参考用，不入库）=====
+LocalNotes/
