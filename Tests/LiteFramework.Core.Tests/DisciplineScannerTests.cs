@@ -137,6 +137,50 @@ namespace LiteFramework.Tests
             Assert.True(hits.Count == 0, "纪律扫描发现违规：\n" + sb);
         }
 
+        [Fact]
+        public void 纪律_R7_非法metaGUID被命中()
+        {
+            // 2026-09-15 事故形态：64 位 base64 guid（Unity 拒收 → 资源静默消失）
+            var v = DisciplineScanner.ScanMetaText(
+                "A.cs.meta",
+                "fileFormatVersion: 2\nguid: CnpNtin4W3zo6TQqjvzFRl7jkSDkR2TEnPSUX6izpYrJlgIFe7QCcvs=\n");
+            Assert.Single(v);
+            Assert.Equal(LintRule.R7InvalidMetaGuid, v[0].Rule);
+            Assert.Equal(2, v[0].Line);
+            Assert.Contains("CnpNtin4", v[0].Code);
+        }
+
+        [Fact]
+        public void 纪律_R7_合法GUID不误报_大小写均接受()
+        {
+            Assert.Empty(DisciplineScanner.ScanMetaText(
+                "A.cs.meta",
+                "fileFormatVersion: 2\nguid: 6c159f085a3f6d0408542447296ba288\n"));
+            Assert.Empty(DisciplineScanner.ScanMetaText(
+                "A.cs.meta",
+                "fileFormatVersion: 2\nguid: 6C159F085A3F6D0408542447296BA288\n"));
+        }
+
+        [Fact]
+        public void 纪律_R7_缺guid行被命中()
+        {
+            var v = DisciplineScanner.ScanMetaText("A.cs.meta", "fileFormatVersion: 2\n");
+            Assert.Single(v);
+            Assert.Equal(1, v[0].Line);
+            Assert.Equal("(缺少 guid 行)", v[0].Code);
+        }
+
+        [Fact]
+        public void 纪律_R7_真实仓库meta全部合法()
+        {
+            // 守卫本次事故形态：任何非法 guid 的 .meta 都会在 Unity 里静默失效
+            string projectRoot = ProjectLocator.FindProjectRoot();
+            var hits = DisciplineScanner.ScanMetas(projectRoot, "Assets");
+            var sb = new StringBuilder();
+            for (int i = 0; i < hits.Count; i++) sb.Append(hits[i]).Append('\n');
+            Assert.True(hits.Count == 0, "发现非法 .meta GUID：\n" + sb);
+        }
+
         private static int Count(string text, LintRule rule)
         {
             return DisciplineScanner.ScanText("test.cs", text, new[] { rule }).Count;
