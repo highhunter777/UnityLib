@@ -116,3 +116,6 @@ Assets/UniversalRenderPipelineGlobalSettings.asset.meta
 
 # ===== 本地留档（个人参考用，不入库）=====
 LocalNotes/
+
+# ===== 参考源码（不参与 Unity 编译；如需启用请移回 Packages/ 并解决 Unity 6 依赖）=====
+_refs/
