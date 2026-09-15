@@ -109,5 +109,104 @@ namespace LiteFramework.Tests
             Assert.Throws<InvalidOperationException>(() => tl.Start());   // 重复
             Assert.Throws<InvalidOperationException>(() => tl.At(0.2f, () => { }));   // 启动后追加
         }
+
+        [Fact]
+        public void Timeline_Loop两轮_保留跨轮剩余时间()
+        {
+            var clock = new WorldClock();
+            clock.MaxDelta = 10f;
+            var runner = new GameTimelineRunner(clock);
+            int fired = 0;
+            var tl = runner.CreateTimeline().At(0.1f, () => fired++).Loop(2);
+            tl.Start();
+
+            clock.Tick(0.25f);
+            runner.Tick(0.25f);
+
+            Assert.Equal(2, fired);
+            Assert.True(tl.Finished);
+        }
+
+        [Fact]
+        public void Timeline_每帧触发上限_下一帧补发()
+        {
+            var clock = new WorldClock();
+            clock.MaxDelta = 10f;
+            var runner = new GameTimelineRunner(clock) { MaxStepsPerTick = 100 };
+            int fired = 0;
+            var tl = runner.CreateTimeline();
+            for (int i = 0; i < 150; i++) tl.At(0.1f, () => fired++);
+            tl.Start();
+
+            clock.Tick(0.2f);
+            runner.Tick(0.2f);
+            Assert.Equal(100, fired);
+            Assert.False(tl.Finished);
+
+            clock.Tick(0.1f);
+            runner.Tick(0.1f);
+            Assert.Equal(150, fired);
+            Assert.True(tl.Finished);
+        }
+
+        [Fact]
+        public void Timeline_无限循环_受每帧上限保护()
+        {
+            var clock = new WorldClock();
+            clock.MaxDelta = 10f;
+            ITimelineRunner runner = new GameTimelineRunner(clock) { MaxStepsPerTick = 3 };
+            int fired = 0;
+            runner.CreateTimeline().At(0.1f, () => fired++).Loop(-1).Start();
+
+            clock.Tick(1f);
+            runner.Tick(1f);
+            Assert.Equal(3, fired);
+
+            clock.Tick(1f);
+            runner.Tick(1f);
+            Assert.Equal(6, fired);
+        }
+
+        [Fact]
+        public void Timeline_Seek跳过之前动作_不重复触发()
+        {
+            var clock = new WorldClock();
+            clock.MaxDelta = 10f;
+            var runner = new GameTimelineRunner(clock);
+            var order = new System.Collections.Generic.List<string>();
+            var tl = runner.CreateTimeline()
+                .At(0.1f, () => order.Add("skipped"))
+                .At(0.2f, () => order.Add("played"))
+                .Seek(0.15f);
+            tl.Start();
+
+            clock.Tick(0.05f);
+            runner.Tick(0.05f);
+
+            Assert.Equal(new[] { "played" }, order);
+        }
+
+        [Fact]
+        public void Timeline_Stop后Seek再Start_从新位置继续()
+        {
+            var clock = new WorldClock();
+            clock.MaxDelta = 10f;
+            var runner = new GameTimelineRunner(clock);
+            int first = 0, second = 0;
+            var tl = runner.CreateTimeline()
+                .At(0.1f, () => first++)
+                .At(0.3f, () => second++);
+            tl.Start();
+
+            clock.Tick(0.15f);
+            runner.Tick(0.15f);
+            tl.Stop();
+            tl.Seek(0.2f).Start();
+
+            clock.Tick(0.1f);
+            runner.Tick(0.1f);
+            Assert.Equal(1, first);
+            Assert.Equal(1, second);
+        }
     }
 }

@@ -11,24 +11,30 @@ namespace LiteFramework
 
     /// <summary>
     /// 调度器实现（M4 §2.7，手册步骤 7；契约 = M1 IScheduler）：动作点/定时注册、到期触发、可取消。
-    /// 决策落点（M4 §1e 定案）：①推进量 = 注入时钟的 ScaledDelta（**不自读 Time**——冻结/变速/暂停单源时钟）；
-    /// ③到期判定 = 增量累积。回调安全：单个回调抛经 SafeCall 隔离，不炸调度器；
-    /// 同帧到期按注册序 FIFO；回调内可再 Schedule/Cancel（先摘除后触发，再入项下一 tick 处理）。
-    /// 双轨实例：LogicScheduler / UIScheduler 空壳子类（WorldClock/UIClock 同款手法）。
+    /// 决策落点（M4 §1e 定案）：①推进量 = 注入时钟的 ScaledDelta（不自读 Time）；
+    /// ③到期判定 = 注入时钟的 Now。回调安全：单个回调抛经 SafeCall 隔离，不炸调度器；
+    /// 同帧到期按注册序 FIFO；回调内可再 Schedule/Cancel，新注册项下一 tick 才处理。
+    /// 内部使用最小堆按到期时间排序，取消采用惰性删除，避免每帧 O(n) 扫描。
     /// </summary>
     public class GameScheduler : IScheduler
     {
         private sealed class ScheduledItem
         {
             public int Id;
-            public float Remaining;
+            public float DueTime;
+            public int ScheduledTick;
             public Action Callback;
             public bool Canceled;
         }
 
+        private const float DueEpsilon = 1e-3f;
+
         private readonly IGameClock _clock;
-        private readonly List<ScheduledItem> _items = new List<ScheduledItem>(16);
+        private readonly List<ScheduledItem> _heap = new List<ScheduledItem>(16);
+        private readonly Dictionary<int, ScheduledItem> _itemsById = new Dictionary<int, ScheduledItem>(16);
         private int _nextId = 1;
+        private int _tickSerial;
+        private int _canceledPendingCleanup;
 
         public GameScheduler(IGameClock clock)
         {
@@ -39,66 +45,163 @@ namespace LiteFramework
         public int Schedule(float delaySeconds, Action callback)
         {
             if (callback == null) throw new ArgumentNullException(nameof(callback));
-            var id = _nextId++;
-            _items.Add(new ScheduledItem
+            if (float.IsNaN(delaySeconds) || float.IsInfinity(delaySeconds))
+                throw new ArgumentOutOfRangeException(nameof(delaySeconds), "delay 必须是有限数值");
+
+            int id = AllocateId();
+            var item = new ScheduledItem
             {
                 Id = id,
-                Remaining = Math.Max(0f, delaySeconds),
+                DueTime = _clock.Now + Math.Max(0f, delaySeconds),
+                ScheduledTick = _tickSerial,
                 Callback = callback,
-            });
+            };
+
+            // Schedule 当前 API 自动分配 Id；这里仍显式校验，防止 int 回绕后发生重复注册。
+            if (!_itemsById.TryAdd(id, item))
+                throw new InvalidOperationException($"调度 Id 重复注册: {id}");
+
+            HeapPush(item);
             return id;
         }
 
+        /// <summary>
+        /// 取消指定调度。已取消但尚未从堆顶清理的项保持幂等；完全不存在的 Id 记录警告，便于定位调用方 bug。
+        /// </summary>
         public void Cancel(int id)
         {
-            foreach (var item in _items)
+            if (!_itemsById.TryGetValue(id, out var item))
             {
-                if (item.Id != id) continue;
-                item.Canceled = true;
-                item.Callback = null;
+                Log.Warning($"尝试取消不存在的调度 Id={id}", "Scheduler");
                 return;
             }
-        }
 
-        /// <summary>到期容差（0.1ms）：浮点累积漂移（0.1f×3 ≈ 0.3f-3e-8）不吃掉最后一次触发。</summary>
-        private const float DueEpsilon = 1e-3f;
+            if (item.Canceled) return;
+            item.Canceled = true;
+            item.Callback = null;
+            _canceledPendingCleanup++;
+        }
 
         public void Tick(float realDelta)
         {
             float dt = _clock.ScaledDelta;                 // 冻结/变速单源：时钟层（决策 ①）
             if (dt <= 0f) return;
 
+            int currentTick = ++_tickSerial;
+            float now = _clock.Now;
             List<ScheduledItem> due = null;
-            for (int i = _items.Count - 1; i >= 0; i--)    // 逆序摘除；先摘后触发（回调内再入安全）
+            List<ScheduledItem> deferred = null;
+
+            // 先摘完本帧到期项，再执行回调。回调内新 Schedule 的 ScheduledTick 等于 currentTick，
+            // 因此即使 delay=0 也会被延迟到下一 tick，保持原有回调安全语义。
+            while (_heap.Count > 0 && _heap[0].DueTime <= now + DueEpsilon)
             {
-                var item = _items[i];
+                var item = HeapPop();
                 if (item.Canceled)
                 {
-                    _items.RemoveAt(i);
+                    RemoveCanceledItem(item);
                     continue;
                 }
-                item.Remaining -= dt;
-                if (item.Remaining <= DueEpsilon)
+
+                if (item.ScheduledTick >= currentTick)
                 {
-                    _items.RemoveAt(i);
-                    due = due ?? new List<ScheduledItem>();
-                    due.Add(item);
+                    deferred = deferred ?? new List<ScheduledItem>(2);
+                    deferred.Add(item);
+                    continue;
                 }
+
+                _itemsById.Remove(item.Id);
+                due = due ?? new List<ScheduledItem>(4);
+                due.Add(item);
             }
 
+            if (deferred != null)
+                for (int i = 0; i < deferred.Count; i++) HeapPush(deferred[i]);
+
             if (due == null) return;
-            due.Sort((a, b) => a.Id.CompareTo(b.Id));      // 同帧到期按注册序 FIFO（决策 ③）
-            foreach (var item in due)
-                SafeCall.Invoke(item.Callback, $"Schedule[{item.Id}]");
+            for (int i = 0; i < due.Count; i++)
+                SafeCall.Invoke(due[i].Callback, $"Schedule[{due[i].Id}]");
         }
 
         public string StatsName => "Scheduler";
 
         public void Snapshot(Dictionary<string, string> into)
         {
-            int pending = 0;
-            foreach (var item in _items) if (!item.Canceled) pending++;
-            into["待触发"] = pending.ToString();
+            into["待触发"] = (_itemsById.Count - _canceledPendingCleanup).ToString();
+            into["已取消待清理"] = _canceledPendingCleanup.ToString();
+        }
+
+        private int AllocateId()
+        {
+            if (_itemsById.Count >= int.MaxValue - 1)
+                throw new InvalidOperationException("调度器已达到最大并发任务数");
+
+            int start = _nextId;
+            int candidate = start;
+            do
+            {
+                _nextId = candidate == int.MaxValue ? 1 : candidate + 1;
+                if (!_itemsById.ContainsKey(candidate)) return candidate;
+                candidate = _nextId;
+            }
+            while (candidate != start);
+
+            throw new InvalidOperationException("无法分配唯一调度 Id");
+        }
+
+        private void RemoveCanceledItem(ScheduledItem item)
+        {
+            _itemsById.Remove(item.Id);
+            _canceledPendingCleanup--;
+        }
+
+        private static bool IsEarlier(ScheduledItem left, ScheduledItem right)
+        {
+            if (left.DueTime < right.DueTime) return true;
+            if (left.DueTime > right.DueTime) return false;
+            return left.Id < right.Id;                    // 同刻按注册序 FIFO
+        }
+
+        private void HeapPush(ScheduledItem item)
+        {
+            _heap.Add(item);
+            int index = _heap.Count - 1;
+            while (index > 0)
+            {
+                int parent = (index - 1) / 2;
+                if (!IsEarlier(_heap[index], _heap[parent])) break;
+                Swap(index, parent);
+                index = parent;
+            }
+        }
+
+        private ScheduledItem HeapPop()
+        {
+            var result = _heap[0];
+            int last = _heap.Count - 1;
+            _heap[0] = _heap[last];
+            _heap.RemoveAt(last);
+            if (_heap.Count == 0) return result;
+
+            int index = 0;
+            while (true)
+            {
+                int left = index * 2 + 1;
+                if (left >= _heap.Count) break;
+                int right = left + 1;
+                int child = right < _heap.Count && IsEarlier(_heap[right], _heap[left]) ? right : left;
+                if (!IsEarlier(_heap[child], _heap[index])) break;
+                Swap(index, child);
+                index = child;
+            }
+            return result;
+        }
+
+        private void Swap(int left, int right)
+        {
+            var item = _heap[left];
+            _heap[left] = _heap[right];
+            _heap[right] = item;
         }
     }
 
