@@ -78,7 +78,23 @@ namespace LiteGame
         {
             Transit(UIFormState.Active, UIFormState.Closing);
             SafeCall.Invoke(() => Logic.OnHide(), $"UIForm[{Id}].OnHide");
+
+            // 界面级订阅清零：OnHide 之后、落池之前（与按钮 UnbindAll 同一时点语义——
+            // 池化复用跨环境的安全垫，防"回收期间事件打进已关闭界面"）。
+            _subs?.Dispose();
+            _subs = null;                              // 置空以支持池化复用：下次显示时按需重建
         }
+
+        private SubscriptionBag _subs;
+
+        /// <summary>
+        /// 界面级订阅袋：订阅的事件随界面关闭自动清零（EnterClosing 统一 Dispose），池化复用安全。
+        /// 用法：<c>form.Subscriptions.Add(events.Subscribe&lt;XxxEvent&gt;(OnXxx));</c>
+        /// C# 侧界面逻辑订阅事件一律挂这里，不要裸订阅——否则关界面后通道仍持回调（泄漏 +
+        /// 复用后回调打进新界面）。Dispose 后误用会当场抛 ObjectDisposedException。
+        /// （Lua 侧界面逻辑不适用：走 <c>events.on</c> 并在界面 OnHide 里调用其返回的注销委托。）
+        /// </summary>
+        public SubscriptionBag Subscriptions => _subs ??= new SubscriptionBag();
 
         /// <summary>落池：Closing → Recycled（SetActive false）。</summary>
         internal void Recycle()
