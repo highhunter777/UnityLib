@@ -59,13 +59,15 @@ namespace LiteFramework.Tests
             {
                 for (DirectoryInfo current = candidate; current != null; current = current.Parent)
                 {
+                    // 标记必须是**被 git 跟踪**的路径：Assets + Tests/Tests.slnx。
+                    // 不能用 ProjectSettings/——它不在版本库里，干净检出（git clone / worktree / CI）都没有。
                     if (Directory.Exists(Path.Combine(current.FullName, "Assets"))
-                        && Directory.Exists(Path.Combine(current.FullName, "ProjectSettings")))
+                        && File.Exists(Path.Combine(current.FullName, "Tests", "Tests.slnx")))
                         return current.FullName;
                 }
             }
 
-            throw new DirectoryNotFoundException("无法定位 Unity 项目根目录（需要同时存在 Assets 与 ProjectSettings）。");
+            throw new DirectoryNotFoundException("无法定位项目根目录（需要同时存在 Assets 与 Tests/Tests.slnx）。");
         }
     }
 }
