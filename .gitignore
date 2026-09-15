@@ -122,3 +122,6 @@ _refs/
 
 # ===== 第三方包：Unity Pipeline（本地补丁见 Docs/UnityPipeline本地补丁.md）=====
 Packages/com.unity.pipeline/
+
+# ===== 本地工具目录（不入库）=====
+.codely-cli/
