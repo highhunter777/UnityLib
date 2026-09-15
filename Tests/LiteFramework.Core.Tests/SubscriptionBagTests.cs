@@ -75,5 +75,28 @@ namespace LiteFramework.Tests
             var bag = new SubscriptionBag();
             Assert.Throws<ArgumentNullException>(() => bag.Add(null));
         }
+
+        [Fact]
+        public void Count_随注册增长_Dispose后归零()
+        {
+            var bag = new SubscriptionBag();
+            Assert.Equal(0, bag.Count);                 // 惰性分配：零订阅时 Count 为 0
+            bag.Add(() => { });
+            bag.Add(() => { });
+            Assert.Equal(2, bag.Count);
+
+            bag.Dispose();
+
+            Assert.Equal(0, bag.Count);                 // 归零 = 归还点可断言"袋子干净"
+        }
+
+        [Fact]
+        public void IsDisposed_标志位语义()
+        {
+            var bag = new SubscriptionBag();
+            Assert.False(bag.IsDisposed);
+            bag.Dispose();
+            Assert.True(bag.IsDisposed);
+        }
     }
 }

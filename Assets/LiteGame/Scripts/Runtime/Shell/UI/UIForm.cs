@@ -93,8 +93,25 @@ namespace LiteGame
         /// C# 侧界面逻辑订阅事件一律挂这里，不要裸订阅——否则关界面后通道仍持回调（泄漏 +
         /// 复用后回调打进新界面）。Dispose 后误用会当场抛 ObjectDisposedException。
         /// （Lua 侧界面逻辑不适用：走 <c>events.on</c> 并在界面 OnHide 里调用其返回的注销委托。）
+        /// **归还期护栏**：界面处于 Closing/Recycled 时取袋子 = 往已关闭界面塞订阅（必然泄漏，因为
+        /// 袋子不会再被 Dispose）→ Debug 三宏下当场抛，release 记错误。
         /// </summary>
-        public SubscriptionBag Subscriptions => _subs ??= new SubscriptionBag();
+        public SubscriptionBag Subscriptions
+        {
+            get
+            {
+                if (State == UIFormState.Closing || State == UIFormState.Recycled)
+                {
+                    const string msg = "已关闭/已回收的界面不得再订阅事件（订阅袋不会再被释放 → 必然泄漏）";
+#if UNITY_EDITOR || DEVELOPMENT_BUILD || LITEFRAMEWORK_DEBUG
+                    throw new InvalidOperationException($"UIForm[{Id}]: {msg}");
+#else
+                    Log.Error($"UIForm[{Id}]: {msg}", "UI");
+#endif
+                }
+                return _subs ??= new SubscriptionBag();
+            }
+        }
 
         /// <summary>落池：Closing → Recycled（SetActive false）。</summary>
         internal void Recycle()
