@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Cysharp.Threading.Tasks;
 using LiteFramework;
 using UnityEngine;
 
@@ -10,6 +11,14 @@ namespace LiteGame
     /// 组 = 类别（Effect/Ui/Voice/Bgm），每组 N 个 AudioSource 代理轮转（并发通道，同组音效可叠加）；
     /// 组音量/静音组级控制；**同优先级不被替换**——全忙时仅"更高优先级"抢占最低优先级代理，否则丢弃（日志可观测）。
     /// 句柄在代理被抢占/自然播完后失效（Stop 对失效句柄安全忽略）。
+    ///
+    /// 评审决议（2026-09-15，对应外部评审 6.2–6.5）：
+    /// - 6.2 Stop O(n)：**不建句柄索引**——总代理数构造期定死（默认 9），Stop 为低频操作；
+    ///   索引反而要维护"自然播完/抢占"的失效清理，得不偿失（不过度设计）。
+    /// - 6.3 抢占语义：**行为正确**——句柄单调递增且永不复用，旧句柄必然失效，
+    ///   Stop(旧句柄) 安全忽略；Source.Play 换 clip 自动停旧音。
+    /// - 6.4 淡入淡出：**已实现** Play(fadeIn) / Stop(fadeOut)，Bgm 组扩为 2 代理支持交叉淡切。
+    /// - 6.5 空间化：**已实现** Play3D（spatialBlend + 一次性世界坐标；跟随实体待真实需求）。
     /// </summary>
     public sealed class AudioService : IModuleStats
     {
@@ -19,7 +28,7 @@ namespace LiteGame
         {
             public AudioSource Source;
             public int Priority;                           // 当前占用者的优先级（空闲 = int.MinValue）
-            public int Handle;                             // 当前占用者句柄（0 = 空闲）
+            public int Handle;                             // 当前占用者句柄（0 = 空闲；单调递增永不复用）
             public float BaseVolume = 1f;
             public bool Busy => Handle != 0 && Source != null && Source.isPlaying;
         }
@@ -38,15 +47,15 @@ namespace LiteGame
         private readonly Transform _root;
         private int _nextHandle = 1;
 
-        public AudioService(int effectProxies = 4, int uiProxies = 2, int voiceProxies = 2)
+        public AudioService(int effectProxies = 4, int uiProxies = 2, int voiceProxies = 2, int bgmProxies = 2)
         {
             _root = new GameObject("[Audio]").transform;
             UnityEngine.Object.DontDestroyOnLoad(_root.gameObject);
             AddGroup(Group.Effect, "Effect", effectProxies);
             AddGroup(Group.Ui, "Ui", uiProxies);
             AddGroup(Group.Voice, "Voice", voiceProxies);
-            AddGroup(Group.Bgm, "Bgm", 1);
-            Log.Info("声音壳就绪:Effect/Ui/Voice/Bgm 四组（组+代理模型）", "Audio");
+            AddGroup(Group.Bgm, "Bgm", bgmProxies);        // 2 代理：BGM 交叉淡切（旧淡出 + 新淡入）
+            Log.Info("声音壳就绪:Effect/Ui/Voice/Bgm 四组（组+代理模型；支持 fadeIn/fadeOut 与 Play3D）", "Audio");
         }
 
         private void AddGroup(Group group, string name, int proxyCount)
@@ -63,8 +72,24 @@ namespace LiteGame
             _groups[group] = def;
         }
 
-        /// <summary>播放：组内空闲代理轮转取用；全忙按优先级抢占（同优先级不替换，无法抢占即丢弃）。</summary>
-        public int Play(Group group, AudioClip clip, float volume = 1f, bool loop = false, int priority = 0)
+        /// <summary>播放（2D）：组内空闲代理轮转取用；全忙按优先级抢占（同优先级不替换，无法抢占即丢弃）。</summary>
+        public int Play(Group group, AudioClip clip, float volume = 1f, bool loop = false, int priority = 0, float fadeIn = 0f)
+        {
+            return PlayInternal(group, clip, volume, loop, priority, spatialBlend: 0f, position: null, fadeIn);
+        }
+
+        /// <summary>
+        /// 播放（3D 空间化）：spatialBlend=1 为全 3D；音源置于 <paramref name="position"/>（一次性定位，
+        /// 不跟随实体——跟随版待真实需求）。代理复用时由 PlayInternal 统一复位 2D/位置，无状态泄漏。
+        /// </summary>
+        public int Play3D(Group group, AudioClip clip, Vector3 position, float volume = 1f, int priority = 0,
+            float spatialBlend = 1f, float fadeIn = 0f)
+        {
+            return PlayInternal(group, clip, volume, false, priority, Mathf.Clamp01(spatialBlend), position, fadeIn);
+        }
+
+        private int PlayInternal(Group group, AudioClip clip, float volume, bool loop, int priority,
+            float spatialBlend, Vector3? position, float fadeIn)
         {
             if (clip == null) throw new ArgumentNullException(nameof(clip));
             var g = _groups[group];
@@ -91,26 +116,54 @@ namespace LiteGame
                 Log.Info($"声音[{group}] 抢占代理（新优先级 {priority} > 旧 {steal.Priority}）", "Audio");
             }
 
+            // 评审 6.3：句柄单调递增且永不复用——被抢占代理的旧句柄必然失效，
+            // Stop(旧句柄) 走安全忽略分支，外部持有旧句柄不会误停新音。
             pick.Handle = _nextHandle++;
             pick.Priority = priority;
             pick.BaseVolume = volume;
-            pick.Source.clip = clip;
-            pick.Source.volume = Mathf.Clamp01(volume * g.Volume);
-            pick.Source.mute = g.Mute;
-            pick.Source.loop = loop;
-            pick.Source.Play();
+
+            var src = pick.Source;
+            src.clip = clip;
+            src.loop = loop;
+            src.mute = g.Mute;
+            src.spatialBlend = spatialBlend;               // 2D/3D 复位（代理复用无状态泄漏）
+            src.rolloffMode = AudioRolloffMode.Linear;
+            src.minDistance = 1f;
+            src.maxDistance = 30f;
+            if (position.HasValue) src.transform.position = position.Value;
+            else src.transform.localPosition = Vector3.zero;
+
+            if (fadeIn > 0f)
+            {
+                src.volume = 0f;                           // 淡入从 0 起步
+                src.Play();
+                FadeAsync(g, pick, pick.Handle, 0f, 1f, fadeIn).Forget();
+            }
+            else
+            {
+                ApplyVolume(g, pick, 1f);
+                src.Play();
+            }
             return pick.Handle;
         }
 
-        public void Stop(int handle)
+        /// <summary>
+        /// 停止指定句柄。<paramref name="fadeOut"/> &gt; 0 时先淡出再停（淡出期间代理仍占用，
+        /// 可被更高优先级抢占——抢占会取消淡出）。失效句柄安全忽略。
+        /// O(总代理数) 有界遍历（构造期定死，默认 9）；Stop 为低频操作，不建句柄索引（评审 6.2 决议）。
+        /// </summary>
+        public void Stop(int handle, float fadeOut = 0f)
         {
             foreach (var g in _groups.Values)
                 foreach (var p in g.Proxies)
                     if (p.Handle == handle)
                     {
-                        p.Source.Stop();
-                        p.Handle = 0;
-                        p.Priority = int.MinValue;
+                        if (fadeOut > 0f)
+                        {
+                            FadeAsync(g, p, handle, 1f, 0f, fadeOut).Forget();
+                            return;
+                        }
+                        ReleaseProxy(p);
                         return;
                     }
         }
@@ -120,7 +173,7 @@ namespace LiteGame
         {
             var g = _groups[group];
             g.Volume = Mathf.Clamp01(volume);
-            foreach (var p in g.Proxies) p.Source.volume = Mathf.Clamp01(p.BaseVolume * g.Volume);
+            foreach (var p in g.Proxies) ApplyVolume(g, p, 1f);
         }
 
         /// <summary>组静音（Source.mute——播放状态保留，解除静音无缝续播）。</summary>
@@ -143,6 +196,41 @@ namespace LiteGame
                 foreach (var p in kv.Value.Proxies) if (p.Busy) busy++;
                 into[$"{kv.Value.Name}{(kv.Value.Mute ? "(静音)" : "")}"] = $"{busy}/{kv.Value.Proxies.Count}";
             }
+        }
+
+        // ---- 内部 ----
+
+        private void ApplyVolume(GroupDef g, Proxy p, float k)
+        {
+            p.Source.volume = Mathf.Clamp01(p.BaseVolume * g.Volume * k);
+        }
+
+        private void ReleaseProxy(Proxy p)
+        {
+            p.Source.Stop();
+            p.Handle = 0;
+            p.Priority = int.MinValue;
+        }
+
+        /// <summary>
+        /// 音量淡变（fire-and-forget）：k 从 from 到 to 线性过渡，音量 = BaseVolume × 组音量 × k。
+        /// 世界轨（Time.deltaTime）：时停即停，与音效语义一致。自检退出：句柄被抢占/停止即取消。
+        /// </summary>
+        private async UniTaskVoid FadeAsync(GroupDef g, Proxy p, int handle, float fromK, float toK, float duration)
+        {
+            if (duration <= 0f) return;
+            float t = 0f;
+            while (p.Handle == handle)
+            {
+                float dt = UnityEngine.Time.deltaTime;
+                t += dt;
+                float k = Mathf.Lerp(fromK, toK, Mathf.Clamp01(t / duration));
+                ApplyVolume(g, p, k);
+                if (t >= duration) break;
+                await UniTask.Yield(PlayerLoopTiming.Update);
+            }
+
+            if (p.Handle == handle && toK <= 0f) ReleaseProxy(p);   // 淡出到位 → 释放代理
         }
     }
 }
