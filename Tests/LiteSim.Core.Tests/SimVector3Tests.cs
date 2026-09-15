@@ -9,7 +9,7 @@ namespace LiteSim.Tests
         private const float T = 1e-6f;
 
         [Fact]
-        public void Operators()
+        public void SimVector3_运算符_加减乘除与取负正确()
         {
             var a = new SimVector3(1f, 2f, 3f);
             var b = new SimVector3(4f, -5f, 6f);
@@ -23,7 +23,7 @@ namespace LiteSim.Tests
         }
 
         [Fact]
-        public void DotAndCross()
+        public void SimVector3_点乘与叉乘_已知值正确()
         {
             var a = new SimVector3(1f, 2f, 3f);
             var b = new SimVector3(4f, -5f, 6f);
@@ -33,7 +33,7 @@ namespace LiteSim.Tests
         }
 
         [Fact]
-        public void Length_And_Distance()
+        public void SimVector3_长度与距离_勾股值正确()
         {
             Close(5f, new SimVector3(3f, 4f, 0f).Length, 1e-5f, "length(3,4,0)");
             Close(25f, new SimVector3(3f, 4f, 0f).LengthSquared, T, "lengthSq");
@@ -41,7 +41,7 @@ namespace LiteSim.Tests
         }
 
         [Fact]
-        public void Normalized_UnitAndZeroSafe()
+        public void SimVector3_单位化_单位向量正确且零向量安全()
         {
             VecClose(0.6f, 0.8f, 0f, new SimVector3(3f, 4f, 0f).Normalized(), "normalized(3,4,0)");
             VecClose(0f, 0f, 0f, SimVector3.Zero.Normalized(), "normalized(zero)");
@@ -50,7 +50,7 @@ namespace LiteSim.Tests
         }
 
         [Fact]
-        public void Struct_DoesNotBoxInOperatorChain()
+        public void SimVector3_运算链_零分配无装箱()
         {
             long before = GC.GetAllocatedBytesForCurrentThread();
             var sum = SimVector3.Zero;

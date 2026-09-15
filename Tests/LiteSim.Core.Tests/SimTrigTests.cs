@@ -10,7 +10,7 @@ namespace LiteSim.Tests
         private const float AtanTol = 1e-4f;
 
         [Fact]
-        public void Sin_MatchesMathSin_10000Samples()
+        public void SimTrig_正弦_与MathSin采样1万点误差在容差内()
         {
             float maxErr = 0f;
             const int n = 10000;
@@ -24,7 +24,7 @@ namespace LiteSim.Tests
         }
 
         [Fact]
-        public void Cos_MatchesMathCos_10000Samples()
+        public void SimTrig_余弦_与MathCos采样1万点误差在容差内()
         {
             float maxErr = 0f;
             const int n = 10000;
@@ -38,7 +38,7 @@ namespace LiteSim.Tests
         }
 
         [Fact]
-        public void Sin_QuadrantBoundaries()
+        public void SimTrig_正弦_象限边界值正确()
         {
             Close(0f, SimTrig.Sin(0f), 1e-6f, "sin(0)");
             Close(1f, SimTrig.Sin(SimTrig.HalfPi), 1e-6f, "sin(π/2)");
@@ -50,7 +50,7 @@ namespace LiteSim.Tests
         }
 
         [Fact]
-        public void Cos_QuadrantBoundaries()
+        public void SimTrig_余弦_象限边界值正确()
         {
             Close(1f, SimTrig.Cos(0f), 1e-6f, "cos(0)");
             Close(0f, SimTrig.Cos(SimTrig.HalfPi), 1e-6f, "cos(π/2)");
@@ -59,7 +59,7 @@ namespace LiteSim.Tests
         }
 
         [Fact]
-        public void Sin_LargeAngle_StaysBounded()
+        public void SimTrig_正弦_大角输入有界且非NaN()
         {
             float v = SimTrig.Sin(1e5f);
             Assert.False(float.IsNaN(v), "sin(1e5) 不应为 NaN");
@@ -68,7 +68,7 @@ namespace LiteSim.Tests
         }
 
         [Fact]
-        public void Sin_NonFiniteInput_ReturnsZero()
+        public void SimTrig_正弦_非有限输入返回零()
         {
             Assert.Equal(0f, SimTrig.Sin(float.NaN));
             Assert.Equal(0f, SimTrig.Sin(float.PositiveInfinity));
@@ -76,7 +76,7 @@ namespace LiteSim.Tests
         }
 
         [Fact]
-        public void Atan2_QuadrantsAndAxes()
+        public void SimTrig_Atan2_四象限与轴上值正确()
         {
             Close(0f, SimTrig.Atan2(0f, 1f), AtanTol, "atan2(0,1)");
             Close(0f, SimTrig.Atan2(0f, 0f), AtanTol, "atan2(0,0)");
@@ -90,7 +90,7 @@ namespace LiteSim.Tests
         }
 
         [Fact]
-        public void Atan2_MatchesMathAtan2_OnSweep()
+        public void SimTrig_Atan2_与MathAtan2扫描误差在容差内()
         {
             float maxErr = 0f;
             const int n = 2000;
@@ -109,7 +109,7 @@ namespace LiteSim.Tests
         }
 
         [Fact]
-        public void Atan2_InverseOfSinCos()
+        public void SimTrig_Atan2_与SinCos互逆误差在容差内()
         {
             float maxErr = 0f;
             for (int i = 0; i < 360; i++)
@@ -127,7 +127,7 @@ namespace LiteSim.Tests
         }
 
         [Fact]
-        public void Tan_NearHalfPi_IsLargeButFinite()
+        public void SimTrig_正切_接近半π时大而有限()
         {
             float t = SimTrig.Tan(SimTrig.HalfPi);
             Assert.False(float.IsNaN(t), "tan(π/2) 不应为 NaN");
@@ -136,14 +136,14 @@ namespace LiteSim.Tests
         }
 
         [Fact]
-        public void Tan_BasicValues()
+        public void SimTrig_正切_基本值正确()
         {
             Close(0f, SimTrig.Tan(0f), 1e-6f, "tan(0)");
             Close(1f, SimTrig.Tan(SimTrig.QuarterPi), 1e-4f, "tan(π/4)");
         }
 
         [Fact]
-        public void Trig_IsRepeatable()
+        public void SimTrig_同输入重复调用_结果逐位一致()
         {
             for (int i = 0; i < 1000; i++)
             {
