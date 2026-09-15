@@ -28,7 +28,7 @@
 | 5 | `Editor/Console/EditorConsoleGroundTruth.cs` | `ConsoleWindowUtility.consoleLogsChanged` 订阅与 `GetConsoleLogCounts(...)` 在 2022.3 下 `#if` 排除（计数置零） | `ConsoleWindowUtility` 为 Unity 6 API |
 | 6 | `Editor/Commands/Materials/MaterialCommands.cs` | `mat.rawRenderQueue` → 2022.3 用 `mat.renderQueue` | Unity 6 新增 `rawRenderQueue`（-1=继承）；2022.3 无 → **读回值退化为有效值**（写入侧 `renderQueue:-1` 仍可用） |
 | 7 | `Editor/Commands/Assets/AssetCommands.cs` | 文件头加 `using PhysicsMaterial = UnityEngine.PhysicMaterial;`（`#if !UNITY_6000_0_OR_NEWER`） | Unity 6 更名 `PhysicMaterial` → `PhysicsMaterial` |
-| 8 | `Runtime/Analyzers/IlInterpreterAnalyzer.dll.meta` | 移除 `labels: - RoslynAnalyzer`（改为 `labels: []`） | 该分析器 DLL 与 2022.3 的 Roslyn 版本不匹配，作为分析器加载会抛 Exception；去掉标签后 Unity 不再按分析器加载（其平台本就全排除，保持惰性），控制台归零 |
+| 8 | `Runtime/Analyzers/IlInterpreterAnalyzer.dll` | **移入 `Runtime/Analyzers/Disabled2022~/`**（`~` 目录 Unity 不导入）并删除其 `.meta` | 该分析器 DLL 引用 `Microsoft.CodeAnalysis`/`System.Collections.Immutable`，2022.3 的 Mono **解析不了这些引用** → Unity 每次导入都抛 "Assembly ... will not be loaded due to errors"。**仅移除 RoslynAnalyzer 标签不够**——Unity 仍会把它当普通插件程序集做加载校验。藏出导入管线后错误永久消失（Unity 6 恢复包原样时移回即可） |
 
 **副作用（可接受）**：分析遥测（#3/#4）与 console 计数对账（#5）在 2022.3 下不生效；材料 renderQueue 读回语义降级（#6）。**Pipeline 服务/命令能力不受影响。**
 
