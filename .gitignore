@@ -84,9 +84,9 @@ Assets/StateMachine.meta
 #       ProjectSettings（Unity 工程设置，缺失则无法直接打开工程）、Luban（表源+生成器）、
 #       Tools（XLua 工具）、Packages/MCPForUnity（编辑器自动化桥，远端 Packages 只留 manifest/lock）。
 #       如需入库请显式 `git add -f <路径>`。
-ProjectSettings/
-Luban/
-Tools/
+/ProjectSettings/
+/Luban/
+/Tools/
 Packages/MCPForUnity/
 
 # ===== 第三方插件（不入库；自研代码依赖它们，克隆后自备）=====

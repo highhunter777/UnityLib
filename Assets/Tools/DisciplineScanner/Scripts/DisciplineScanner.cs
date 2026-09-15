@@ -26,6 +26,9 @@ namespace Tools.DisciplineScan
 
         /// <summary>R6 禁原生 Unity 协程：业务 Unity 层只用可取消 UniTask（IEnumerator / StartCoroutine / yield return）。</summary>
         R6NativeCoroutine = 6,
+
+        /// <summary>R7 非法 .meta GUID：guid 必须是 32 位 hex（64 位 base64 会被 Unity 拒绝导入 → 资源/类型静默消失）。</summary>
+        R7InvalidMetaGuid = 7,
     }
 
     /// <summary>一条纪律违规。</summary>
@@ -71,6 +74,9 @@ namespace Tools.DisciplineScan
             @"\bIEnumerator\b|\b(?:StartCoroutine|StopCoroutine|StopAllCoroutines)\b|\byield\s+return\b",
             RegexOptions.Compiled);
 
+        /// <summary>R7：.meta 的 guid 行必须是 32 位 hex（2026-09-15 事故：64 位 base64 被 Unity 拒收）。</summary>
+        private static readonly Regex MetaGuidValueRegex = new Regex(@"^[0-9a-fA-F]{32}$", RegexOptions.Compiled);
+
         private static readonly Regex NumericLiteral = new Regex(
             @"^[-+]?[0-9]+(\.[0-9]+)?[fFuUlLdDmM]*$", RegexOptions.Compiled);
 
@@ -83,6 +89,7 @@ namespace Tools.DisciplineScan
             LintRule.R4DeterminismContainer,
             LintRule.R5BareUnityEditor,
             LintRule.R6NativeCoroutine,
+            LintRule.R7InvalidMetaGuid,
         };
 
         public static string RuleId(LintRule rule)
@@ -95,6 +102,7 @@ namespace Tools.DisciplineScan
                 case LintRule.R4DeterminismContainer: return "R4";
                 case LintRule.R5BareUnityEditor: return "R5";
                 case LintRule.R6NativeCoroutine: return "R6";
+                case LintRule.R7InvalidMetaGuid: return "R7";
                 default: return "R?";
             }
         }
@@ -156,7 +164,7 @@ namespace Tools.DisciplineScan
             return result;
         }
 
-        /// <summary>按 <see cref="ScanTargets.Default"/> 扫描全部目标，返回「目标 → 违规」。</summary>
+        /// <summary>按 <see cref="ScanTargets.Default"/> 扫描全部目标（含 <see cref="ScanTargets.MetaRoots"/> 的 .meta），返回「目标 → 违规」。</summary>
         public static List<KeyValuePair<string, LintViolation>> ScanDefault(string projectRoot)
         {
             var result = new List<KeyValuePair<string, LintViolation>>();
@@ -166,6 +174,71 @@ namespace Tools.DisciplineScan
                 List<LintViolation> hits = ScanRoot(projectRoot, targets[t].Root, targets[t].Rules);
                 for (int i = 0; i < hits.Count; i++)
                     result.Add(new KeyValuePair<string, LintViolation>(targets[t].Root, hits[i]));
+            }
+
+            string[] metaRoots = ScanTargets.MetaRoots;
+            for (int m = 0; m < metaRoots.Length; m++)
+            {
+                List<LintViolation> hits = ScanMetas(projectRoot, metaRoots[m]);
+                for (int i = 0; i < hits.Count; i++)
+                    result.Add(new KeyValuePair<string, LintViolation>(metaRoots[m], hits[i]));
+            }
+            return result;
+        }
+
+        /// <summary>
+        /// 扫描一段 .meta 文本（R7）：guid 行必须是 32 位小写 hex；缺 guid 行同样违规。
+        /// 与 <see cref="ScanText"/> 的差异：meta 不是 C#，不做注释剔除/豁免，只认第一个 guid 行。
+        /// </summary>
+        public static List<LintViolation> ScanMetaText(string fileName, string text)
+        {
+            var result = new List<LintViolation>();
+            if (text == null) return result;
+
+            string[] lines = text.Replace("\r\n", "\n").Replace('\r', '\n').Split('\n');
+            for (int i = 0; i < lines.Length; i++)
+            {
+                string line = lines[i];
+                if (!line.StartsWith("guid:", StringComparison.Ordinal)) continue;
+                string value = line.Substring(5).Trim();
+                if (!MetaGuidValueRegex.IsMatch(value))
+                {
+                    string shown = value.Length == 0 ? "(guid 值为空)" : value;
+                    result.Add(new LintViolation
+                    {
+                        File = fileName,
+                        Line = i + 1,
+                        Rule = LintRule.R7InvalidMetaGuid,
+                        Code = shown,
+                    });
+                }
+                return result; // meta 规范只含一个 guid 行
+            }
+
+            result.Add(new LintViolation
+            {
+                File = fileName,
+                Line = 1,
+                Rule = LintRule.R7InvalidMetaGuid,
+                Code = "(缺少 guid 行)",
+            });
+            return result;
+        }
+
+        /// <summary>扫描一个根目录（相对 <paramref name="projectRoot"/>）下的全部 *.meta（R7）。</summary>
+        public static List<LintViolation> ScanMetas(string projectRoot, string relativeRoot)
+        {
+            var result = new List<LintViolation>();
+            string root = Path.Combine(projectRoot, relativeRoot);
+            if (!Directory.Exists(root)) return result;
+
+            string[] files = Directory.GetFiles(root, "*.meta", SearchOption.AllDirectories);
+            Array.Sort(files, StringComparer.Ordinal); // 固定顺序 → 输出稳定
+            for (int i = 0; i < files.Length; i++)
+            {
+                string normalized = files[i].Replace('\\', '/');
+                string display = RelativeDisplay(projectRoot, normalized);
+                result.AddRange(ScanMetaText(display, File.ReadAllText(files[i])));
             }
             return result;
         }

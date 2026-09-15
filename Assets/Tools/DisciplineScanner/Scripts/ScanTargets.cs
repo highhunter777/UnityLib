@@ -50,5 +50,16 @@ namespace Tools.DisciplineScan
             new ScanTarget("Assets/LiteFramework/Scripts/Unity", UnityRules),
             new ScanTarget("Assets/LiteGame/Scripts/Runtime", UnityRules),
         };
+
+        /// <summary>
+        /// .meta 扫描根（R7 非法 GUID，2026-09-15 事故：64 位 base64 guid 被 Unity 拒收）。
+        /// 任何 .meta 的 guid 都必须是 32 位 hex；Editor 目录**不豁免**（meta 不是 C#，
+        /// <see cref="DisciplineScanner.IsExcluded"/> 的 Editor 排除不适用于 meta 扫描）。
+        /// </summary>
+        public static readonly string[] MetaRoots =
+        {
+            "Assets",
+            "Packages",
+        };
     }
 }
