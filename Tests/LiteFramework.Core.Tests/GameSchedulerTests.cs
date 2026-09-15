@@ -109,6 +109,24 @@ namespace LiteFramework.Tests
         }
 
         [Fact]
+        public void Schedule_Snapshot统计取消待清理项()
+        {
+            var clock = NewClock();
+            var scheduler = new GameScheduler(clock);
+            var id = scheduler.Schedule(1f, () => { });
+            scheduler.Cancel(id);
+
+            var snapshot = new System.Collections.Generic.Dictionary<string, string>();
+            scheduler.Snapshot(snapshot);
+            Assert.Equal("0", snapshot["待触发"]);
+            Assert.Equal("1", snapshot["已取消待清理"]);
+
+            Step(clock, scheduler, 1f);
+            scheduler.Snapshot(snapshot);
+            Assert.Equal("0", snapshot["已取消待清理"]);
+        }
+
+        [Fact]
         public void UIScheduler_不受世界时停影响()
         {
             var world = new WorldClock();
