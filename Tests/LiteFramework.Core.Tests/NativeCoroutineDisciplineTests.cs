@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Text;
 using System.Text.RegularExpressions;
 using Xunit;
 
@@ -9,6 +10,7 @@ namespace LiteFramework.Tests
     /// <summary>
     /// 原生 Unity 协程纪律：业务 Unity 层只能使用可取消 UniTask。
     /// 第三方 UniTask/xLua 源码、Lua coroutine 以及 Core 的集合枚举不在扫描范围内。
+    /// 规则匹配前先剔除注释——注释里提到禁用 API 不算违规。
     /// </summary>
     public sealed class NativeCoroutineDisciplineTests
     {
@@ -33,9 +35,11 @@ namespace LiteFramework.Tests
                 foreach (string file in Directory.EnumerateFiles(sourceRoot, "*.cs", SearchOption.AllDirectories))
                 {
                     string[] lines = File.ReadAllLines(file);
+                    bool inBlockComment = false;
                     for (int i = 0; i < lines.Length; i++)
                     {
-                        if (Forbidden.IsMatch(lines[i]))
+                        string code = StripComments(lines[i], ref inBlockComment);
+                        if (Forbidden.IsMatch(code))
                             violations.Add($"{Path.GetRelativePath(projectRoot, file)}:{i + 1}: {lines[i].Trim()}");
                     }
                 }
@@ -45,6 +49,41 @@ namespace LiteFramework.Tests
                 violations.Count == 0,
                 "检测到被禁止的 C# 原生 Unity 协程写法。请改用可取消 UniTask，并在宿主禁用/销毁时取消：\n"
                 + string.Join(Environment.NewLine, violations));
+        }
+
+        /// <summary>去掉行注释与块注释（字符串字面量感知）——注释里提到禁用 API 不算违规。</summary>
+        private static string StripComments(string line, ref bool inBlock)
+        {
+            var sb = new StringBuilder(line.Length);
+            bool inString = false;
+
+            for (int i = 0; i < line.Length; i++)
+            {
+                char c = line[i];
+
+                if (inBlock)
+                {
+                    if (c == '*' && i + 1 < line.Length && line[i + 1] == '/') { inBlock = false; i++; }
+                    continue;
+                }
+
+                if (inString)
+                {
+                    sb.Append(c);
+                    if (c == '\\' && i + 1 < line.Length) { sb.Append(line[i + 1]); i++; continue; }
+                    if (c == '"') inString = false;
+                    continue;
+                }
+
+                if (c == '"') { inString = true; sb.Append(c); continue; }
+                if (c == '/' && i + 1 < line.Length)
+                {
+                    if (line[i + 1] == '/') break; // 行注释 → 丢弃余下
+                    if (line[i + 1] == '*') { inBlock = true; i++; continue; }
+                }
+                sb.Append(c);
+            }
+            return sb.ToString();
         }
 
         private static string FindProjectRoot()
