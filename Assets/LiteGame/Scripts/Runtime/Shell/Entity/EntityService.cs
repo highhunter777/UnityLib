@@ -15,18 +15,36 @@ namespace LiteGame
         public GameObject GameObject { get; internal set; }
 
         private SubscriptionBag _subs;
+        private bool _released;
 
         /// <summary>
         /// 实体级订阅袋（C# 对象的事件订阅生命周期归属）：**随实体回收自动清零**（HideInternal 统一 Dispose）。
         /// 用法：<c>handle.Subscriptions.Add(events.Subscribe&lt;XxxEvent&gt;(OnXxx));</c>
         /// 骨架/玩法系统为某实体订阅事件时一律挂这里，不要裸订阅——否则实体回收后通道仍持回调（泄漏 +
         /// 池化复用后回调打进新占用者）。句柄不复用（Reserve 每次递增），Dispose 后误用会当场抛 ObjectDisposedException。
+        /// **归还期护栏**：已回收句柄上取袋子 = 往已回收实体塞订阅（必然泄漏）→ Debug 三宏下当场抛，release 记错误。
         /// </summary>
-        public SubscriptionBag Subscriptions => _subs ??= new SubscriptionBag();
+        public SubscriptionBag Subscriptions
+        {
+            get
+            {
+                if (_released)
+                {
+                    const string msg = "已回收实体的句柄不得再订阅事件（订阅袋不会再被释放 → 必然泄漏）";
+#if UNITY_EDITOR || DEVELOPMENT_BUILD || LITEFRAMEWORK_DEBUG
+                    throw new InvalidOperationException($"Entity[{Id}]: {msg}");
+#else
+                    Log.Error($"Entity[{Id}]: {msg}", "Entity");
+#endif
+                }
+                return _subs ??= new SubscriptionBag();
+            }
+        }
 
         /// <summary>回收前清零（由 EntityService 在池回收前调用；幂等）。</summary>
         internal void DisposeSubscriptions()
         {
+            _released = true;                                  // 先置位：Dispose 委托执行期间的重入订阅当场被拦
             _subs?.Dispose();
             _subs = null;
         }
