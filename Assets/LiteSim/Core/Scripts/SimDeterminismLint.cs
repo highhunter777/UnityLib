@@ -19,6 +19,9 @@ namespace LiteSim
 
         /// <summary>R4 禁确定性容器/遍历（LINQ、不稳定排序）；M8 起生效。</summary>
         R4DeterminismContainer = 4,
+
+        /// <summary>R5 禁裸 UNITY_EDITOR：条件编译须用三宏并集（UNITY_EDITOR || DEVELOPMENT_BUILD || LITEFRAMEWORK_DEBUG）。</summary>
+        R5BareUnityEditor = 5,
     }
 
     /// <summary>一条纪律违规。</summary>
@@ -41,6 +44,8 @@ namespace LiteSim
     ///
     /// 豁免：行内出现 <c>lint-allow</c> 时，该行全部规则豁免；<c>lint-allow R3</c> 则只豁免 R3。
     /// 另：与常量 0 / null / default 的明确比较自动豁免 R3（不适用 NearlyEqual）。
+    /// 注释（<c>//</c> 与 <c>/* */</c>，字符串字面量感知）在匹配前剔除——注释里提到禁用 API 不算违规。
+    /// <c>R5</c> 只作用于条件编译指令行（<c>#if</c>/<c>#elif</c>）。
     /// </summary>
     public static class SimDeterminismLint
     {
@@ -60,6 +65,11 @@ namespace LiteSim
             @"\busing\s+System\.Linq\b|\.(OrderBy|OrderByDescending|GroupBy|ToDictionary|Where|Select)\s*\(",
             RegexOptions.Compiled);
 
+        /// <summary>R5：条件编译指令行（#if / #elif）。</summary>
+        private static readonly Regex R5DirectiveRegex = new Regex(
+            @"^\s*#\s*(?:if|elif)\b",
+            RegexOptions.Compiled);
+
         private static readonly Regex NumericLiteral = new Regex(
             @"^[-+]?[0-9]+(\.[0-9]+)?[fFuUlLdDmM]*$",
             RegexOptions.Compiled);
@@ -70,6 +80,7 @@ namespace LiteSim
             SimLintRule.R2Fma,
             SimLintRule.R3FloatEquality,
             SimLintRule.R4DeterminismContainer,
+            SimLintRule.R5BareUnityEditor,
         };
 
         public static string RuleId(SimLintRule rule)
@@ -80,6 +91,7 @@ namespace LiteSim
                 case SimLintRule.R2Fma: return "R2";
                 case SimLintRule.R3FloatEquality: return "R3";
                 case SimLintRule.R4DeterminismContainer: return "R4";
+                case SimLintRule.R5BareUnityEditor: return "R5";
                 default: return "R?";
             }
         }
@@ -124,6 +136,11 @@ namespace LiteSim
                 if (enableR4)
                 {
                     Check(result, fileName, lineNo, raw, code, SimLintRule.R4DeterminismContainer, R4Regex);
+                }
+
+                if (!IsExempt(raw, SimLintRule.R5BareUnityEditor) && HasR5Violation(code))
+                {
+                    result.Add(Make(fileName, lineNo, SimLintRule.R5BareUnityEditor, raw));
                 }
             }
             return result;
@@ -221,6 +238,15 @@ namespace LiteSim
                 return true;
             }
             return false;
+        }
+
+        /// <summary>R5：条件编译指令行（#if/#elif）含 <c>UNITY_EDITOR</c> 却缺 <c>LITEFRAMEWORK_DEBUG</c>——即裸 `UNITY_EDITOR` 判 Debug。</summary>
+        private static bool HasR5Violation(string code)
+        {
+            if (!R5DirectiveRegex.IsMatch(code)) return false;
+            if (code.IndexOf("UNITY_EDITOR", StringComparison.Ordinal) < 0) return false;
+            if (code.IndexOf("LITEFRAMEWORK_DEBUG", StringComparison.Ordinal) >= 0) return false;
+            return true;
         }
 
         private static bool IsZeroOrNullLiteral(string token)

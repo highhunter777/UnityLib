@@ -20,7 +20,7 @@ namespace LiteSim.Tests
         };
 
         [Fact]
-        public void NextUInt32_FixedSeed_MatchesAnchor()
+        public void SimRng_NextUInt32_固定种子前8值与锚点一致()
         {
             var rng = new SimRng(12345UL);
             for (int i = 0; i < AnchorU32.Length; i++)
@@ -30,7 +30,7 @@ namespace LiteSim.Tests
         }
 
         [Fact]
-        public void NextFloat01_FixedSeed_MatchesAnchor()
+        public void SimRng_NextFloat01_固定种子前8值与锚点一致()
         {
             var rng = new SimRng(12345UL);
             for (int i = 0; i < AnchorF01.Length; i++)
@@ -40,7 +40,7 @@ namespace LiteSim.Tests
         }
 
         [Fact]
-        public void SameSeed_SameSequence()
+        public void SimRng_同种子_序列一致()
         {
             var a = new SimRng(999UL);
             var b = new SimRng(999UL);
@@ -51,7 +51,7 @@ namespace LiteSim.Tests
         }
 
         [Fact]
-        public void ZeroSeed_IsRemappedToNonZero()
+        public void SimRng_零种子_改为非零且不锁死()
         {
             var rng = new SimRng(0UL);
             Assert.True(rng.State != 0UL);
@@ -62,7 +62,7 @@ namespace LiteSim.Tests
         }
 
         [Fact]
-        public void NextFloat01_InUnitInterval()
+        public void SimRng_NextFloat01_恒在零到一之间()
         {
             var rng = new SimRng(7UL);
             for (int i = 0; i < 100000; i++)
@@ -73,7 +73,7 @@ namespace LiteSim.Tests
         }
 
         [Fact]
-        public void NextRange_Int_BoundsAndSanity()
+        public void SimRng_NextRange整数_不越界且空区间返回min()
         {
             var rng = new SimRng(42UL);
             for (int i = 0; i < 100000; i++)
@@ -86,7 +86,7 @@ namespace LiteSim.Tests
         }
 
         [Fact]
-        public void NextRange_Float_Bounds()
+        public void SimRng_NextRange浮点_不越界()
         {
             var rng = new SimRng(43UL);
             for (int i = 0; i < 100000; i++)
@@ -97,7 +97,7 @@ namespace LiteSim.Tests
         }
 
         [Fact]
-        public void NextRange_UniformRoughSanity()
+        public void SimRng_NextRange_分桶粗检不偏斜()
         {
             // 仅粗检：分桶计数不应严重偏斜（不做统计强断言）。
             var rng = new SimRng(2024UL);

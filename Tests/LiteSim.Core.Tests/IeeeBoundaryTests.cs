@@ -12,14 +12,14 @@ namespace LiteSim.Tests
     public class IeeeBoundaryTests
     {
         [Fact]
-        public void BaselineFile_Exists()
+        public void Ieee基线_文件存在()
         {
             string path = BaselinePath();
             Assert.True(File.Exists(path), "缺少 IEEE 基线文件：" + path);
         }
 
         [Fact]
-        public void BasicOps_AreBitExactAgainstBaseline()
+        public void Ieee基线_基础运算与基线逐位一致()
         {
             string path = BaselinePath();
             Assert.True(File.Exists(path), "缺少 IEEE 基线文件：" + path);
@@ -42,13 +42,13 @@ namespace LiteSim.Tests
         }
 
         [Fact]
-        public void Operations_AreRepeatable()
+        public void Ieee基线_运算链重复执行结果一致()
         {
             Assert.Equal(IeeeBaselineSpec.BuildLines(), IeeeBaselineSpec.BuildLines());
         }
 
         [Fact]
-        public void ChainChecksum_IsStable()
+        public void Ieee基线_运算链checksum稳定()
         {
             Assert.Equal(IeeeBaselineSpec.ChainChecksum(), IeeeBaselineSpec.ChainChecksum());
         }
