@@ -5,6 +5,7 @@ using Xunit;
 namespace LiteFramework.Tests
 {
     // SafeCall（设计方案 §4.3 事件桥前置件）：调用即防护——单回调抛异常不外泄、派发链存活
+    [Collection("CoreStatic")]   // 异常路径写 Log.Error（全局静态，无线程锁）；本组直接断言 Log.ErrorCount 增量
     public sealed class SafeCallTests
     {
         [Fact]

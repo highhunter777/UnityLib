@@ -5,7 +5,9 @@ using Xunit;
 namespace LiteFramework.Tests
 {
     /// <summary>调度器（M4 §2.7）：到期触发 / 取消 / 双时钟语义（暂停冻结、变速比例）/ FIFO / 回调隔离。
-    /// 直接用 WorldClock/UIClock 真件（引擎无关，纯 C#）——确定性推进。</summary>
+    /// 直接用 WorldClock/UIClock 真件（引擎无关，纯 C#）——确定性推进。
+    /// 回调异常经 SafeCall.Invoke → Log.Error（全局静态，无线程锁）。</summary>
+    [Collection("CoreStatic")]
     public sealed class GameSchedulerTests
     {
         private static WorldClock NewClock()
