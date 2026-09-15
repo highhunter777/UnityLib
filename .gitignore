@@ -119,3 +119,6 @@ LocalNotes/
 
 # ===== 参考源码（不参与 Unity 编译；如需启用请移回 Packages/ 并解决 Unity 6 依赖）=====
 _refs/
+
+# ===== 第三方包：Unity Pipeline（本地补丁见 Docs/UnityPipeline本地补丁.md）=====
+Packages/com.unity.pipeline/
