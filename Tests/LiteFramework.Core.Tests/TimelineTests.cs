@@ -4,7 +4,9 @@ using Xunit;
 
 namespace LiteFramework.Tests
 {
-    /// <summary>时间轴（M4 §2.7）：乱序注册按时间点执行 / Stop 中断 / Finished 语义 / 步骤抛隔离 / 暂停冻结。</summary>
+    /// <summary>时间轴（M4 §2.7）：乱序注册按时间点执行 / Stop 中断 / Finished 语义 / 步骤抛隔离 / 暂停冻结。
+    /// 步骤异常经 SafeCall.Invoke → Log.Error（全局静态，无线程锁）。</summary>
+    [Collection("CoreStatic")]
     public sealed class TimelineTests
     {
         [Fact]
