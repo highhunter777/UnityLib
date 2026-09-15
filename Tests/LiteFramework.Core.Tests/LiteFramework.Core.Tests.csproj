@@ -16,6 +16,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\Assets\LiteFramework\LiteFramework.Core.csproj" />
+    <ProjectReference Include="..\..\Assets\Tools\DisciplineScanner\DisciplineScanner.csproj" />
   </ItemGroup>
 
 </Project>

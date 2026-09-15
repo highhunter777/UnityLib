@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">  <!--
+    双轨编译：纪律扫描引擎（零依赖纯 C#）在 Unity（asmdef）与 dotnet（本 csproj）两侧编译。
+    - Scripts/Editor 用 UnityEditor，不进双轨，靠 Exclude 剔除
+    - 本程序集**不被任何运行时程序集引用**：只是 Editor 菜单与 dotnet 测试的共用引擎
+    - LangVersion 9.0：与 Unity 侧对齐
+  -->
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <LangVersion>9.0</LangVersion>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="Scripts/**/*.cs" Exclude="Scripts/Editor/**/*.cs" />
+  </ItemGroup>
+
+</Project>
