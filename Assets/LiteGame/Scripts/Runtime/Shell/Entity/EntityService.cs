@@ -14,6 +14,23 @@ namespace LiteGame
         public string Location { get; }
         public GameObject GameObject { get; internal set; }
 
+        private SubscriptionBag _subs;
+
+        /// <summary>
+        /// 实体级订阅袋（C# 对象的事件订阅生命周期归属）：**随实体回收自动清零**（HideInternal 统一 Dispose）。
+        /// 用法：<c>handle.Subscriptions.Add(events.Subscribe&lt;XxxEvent&gt;(OnXxx));</c>
+        /// 骨架/玩法系统为某实体订阅事件时一律挂这里，不要裸订阅——否则实体回收后通道仍持回调（泄漏 +
+        /// 池化复用后回调打进新占用者）。句柄不复用（Reserve 每次递增），Dispose 后误用会当场抛 ObjectDisposedException。
+        /// </summary>
+        public SubscriptionBag Subscriptions => _subs ??= new SubscriptionBag();
+
+        /// <summary>回收前清零（由 EntityService 在池回收前调用；幂等）。</summary>
+        internal void DisposeSubscriptions()
+        {
+            _subs?.Dispose();
+            _subs = null;
+        }
+
         internal EntityHandle(int id, string location, GameObject go)
         {
             Id = id;
@@ -189,6 +206,7 @@ namespace LiteGame
                 if (_attachments.TryGetValue(parentHandle, out var list)) list.Remove(handleId);
             }
             var handle = _active[handleId];
+            handle.DisposeSubscriptions();                 // 订阅清零在池回收之前：OnRecycle 期间已无事件可打进来
             _pool.Release(handle.GameObject);
             _active.Remove(handleId);
             Log.Info($"实体[{handleId}] 回收（连锁含子件）", "Entity");
