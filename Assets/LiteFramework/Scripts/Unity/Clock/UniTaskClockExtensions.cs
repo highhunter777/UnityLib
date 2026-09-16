@@ -1,6 +1,4 @@
 using Cysharp.Threading.Tasks;
-using System.Collections;
-using System.Collections.Generic;
 using System.Threading;
 using UnityEngine;
 
@@ -24,7 +22,7 @@ namespace LiteFramework
             while (remaining > 0f)
             {
                 ct.ThrowIfCancellationRequested();
-                await UniTask.NextFrame();
+                await UnityAsync.NextFrameAsync(ct);
                 remaining -= clock.ScaledDelta;   // 恢复时机与时钟 tick 的先后由 DefaultExecutionOrder 固定(装配步)
             }
         }
