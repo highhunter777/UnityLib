@@ -36,6 +36,13 @@ namespace Tools.DisciplineScan
             LintRule.R5BareUnityEditor,
         };
 
+        /// <summary>LiteNet：客户端与 .NET 服务器共用 → R5 必守（禁裸 UNITY_EDITOR——双端编译是红线）；
+        /// R1–R4 属 Sim 确定性纪律，不适用于传输/协议层（广播遍历序非逻辑序）；Vendor/ 已全局排除。</summary>
+        public static readonly LintRule[] NetRules =
+        {
+            LintRule.R5BareUnityEditor,
+        };
+
         /// <summary>业务 Unity 层：只守 R6（原生协程）。</summary>
         public static readonly LintRule[] UnityRules =
         {
@@ -46,6 +53,7 @@ namespace Tools.DisciplineScan
         public static readonly ScanTarget[] Default =
         {
             new ScanTarget("Assets/LiteSim", SimRules),
+            new ScanTarget("Assets/LiteNet", NetRules),
             new ScanTarget("Assets/LiteFramework/Scripts/Core", CoreRules),
             new ScanTarget("Assets/LiteFramework/Scripts/Unity", UnityRules),
             new ScanTarget("Assets/LiteGame/Scripts/Runtime", UnityRules),

@@ -1,0 +1,18 @@
+{
+	"name": "LiteNet",
+	"rootNamespace": "LiteNet",
+	"references": [
+		"LiteSim.Core"
+	],
+	"includePlatforms": [],
+	"excludePlatforms": [],
+	"allowUnsafeCode": false,
+	"overrideReferences": true,
+	"precompiledReferences": [
+		"Google.Protobuf.dll"
+	],
+	"autoReferenced": true,
+	"defineConstraints": [],
+	"versionDefines": [],
+	"noEngineReferences": true
+}

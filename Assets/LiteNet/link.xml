@@ -1,0 +1,5 @@
+<linker>
+  <!-- Google.Protobuf（IL2CPP 裁剪保留——protobuf 反射元数据在裁剪下必丢，构建报错前先保留；
+       与《状态同步实施方案》§4.5 协议面"link.xml 追加 Google.Protobuf 段"对应） -->
+  <assembly fullname="Google.Protobuf" preserve="all" />
+</linker>

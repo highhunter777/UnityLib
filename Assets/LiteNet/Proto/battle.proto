@@ -1,0 +1,59 @@
+// LiteNet 战斗协议单源（《状态同步实施方案》§4.5 协议矩阵 + §4.2 双通道）
+// 生成：scripts/gen-proto.ps1（protoc 3.36.1 / Google.Protobuf 3.36.1；产物入库 Generated/Battle.cs，勿手改）
+// 约定：float 字段 = IEEE 754 单精度，位级精确往返（M9 和解机制依赖位级一致；量化整型留带宽调优时另行评估）
+syntax = "proto3";
+package litebattle;
+option csharp_namespace = "LiteNet.Proto";
+
+// ===== 单帧输入（对应 LiteSim.SimInputFrame；客户端只填自己的输入，EntityId 由服务器按会话覆写）=====
+
+message InputFrame {
+  int64 entity_id = 1;   // 48 位 version + 16 位 slot
+  float move_x = 2;
+  float move_z = 3;
+  float yaw = 4;
+  uint32 buttons = 5;
+}
+
+// ===== C→S 逐帧输入（Unreliable + ≤4 帧冗余）=====
+
+message InputMessage {
+  int32 frame = 1;                  // frames[0] 的帧号；frames[i] = frame - i
+  repeated InputFrame frames = 2;   // 最近 ≤4 帧（§4.2 冗余：丢一包仍可从后包补帧）
+  int32 ack_snapshot = 3;           // 客户端已收最新快照帧号（丢包反馈 + §4.5 传输层校验锚点）
+  int32 view_frame = 4;             // 开火时刻所见帧（服务器回溯判定点 §3.4.1；无开火填 0）
+}
+
+// ===== S→C 快照（Unreliable；增量/全量同构——增量=变化槽位，全量=全部活体槽位）=====
+
+message SlotDelta {
+  int32 slot = 1;
+  int64 id = 2;                      // 槽位活体即持此 Id；全量下可重建分配器 version（id>>16）
+  float pos_x = 3;  float pos_y = 4;  float pos_z = 5;
+  float vel_x = 6;  float vel_y = 7;  float vel_z = 8;
+  float yaw = 9;
+  int32 hp = 10;
+  uint32 flags = 11;
+}
+
+message StateSnapshot {
+  int32 frame = 1;
+  bool is_full = 2;                  // 全量：快照丢包累积补偿/重连恢复用；增量：对比上一广播帧副本
+  repeated SlotDelta slots = 3;
+  uint32 checksum = 4;               // 权威 Sim 全量校验（客户端和解判定：本地预测 checksum vs 此值）
+  int32 ack_input = 5;               // 服务器已确认的最新输入帧号（下限口径）
+}
+
+// ===== 信令（Reliable）=====
+
+message JoinRequest       { string room_id = 1; string token = 2; string build_hash = 3; }
+message JoinAck           { int32 player_id = 1; repeated int32 members = 2; }
+message StartGame         { int64 seed = 1; uint32 config_hash = 2; }
+message Leave            { }
+message Heartbeat        { int64 client_time = 1; }  // 连接保活由 kcp2k 内建 Ping 承担；此包留给 RTT 观测，M10 不强制发送
+message ReconnectRequest { string one_time_token = 1; }   // E3：一次性票据
+message ReconnectResponse { bool ok = 1; StateSnapshot snapshot = 2; repeated InputMessage history = 3; }  // §5.6
+
+// ===== C→S 和解上报（Unreliable；Ops 汇总和解率）=====
+
+message MismatchReport { int32 frame = 1; }

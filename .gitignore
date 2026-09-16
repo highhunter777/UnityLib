@@ -35,9 +35,12 @@ XLuaSamples/
 # 双轨编译的手写工程文件（被 Tests.slnx / 测试工程引用，保留入库）
 !Assets/LiteFramework/*.csproj
 !Assets/LiteSim/Core/*.csproj
+!Assets/LiteNet/*.csproj
 !Assets/Tools/DisciplineScanner/*.csproj
+!RoomServer/*.csproj
 !Tests/LiteFramework.Core.Tests/*.csproj
 !Tests/LiteSim.Core.Tests/*.csproj
+!Tests/LiteNet.Tests/*.csproj
 
 # dotnet 侧构建输出（Directory.Build.props 重定向到点目录；三个工程的 .dotnet 一并覆盖）
 .dotnet/

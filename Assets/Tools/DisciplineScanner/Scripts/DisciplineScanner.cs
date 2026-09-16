@@ -118,6 +118,7 @@ namespace Tools.DisciplineScan
             if (p.EndsWith("/SimTrigTables.cs", StringComparison.Ordinal)) return true;
             if (p.EndsWith("/DisciplineScanner.cs", StringComparison.Ordinal)) return true;
             if (p.Contains("/Editor/") || p.EndsWith("/Editor", StringComparison.Ordinal)) return true;
+            if (p.Contains("/Vendor/")) return true; // 第三方 vendored 源码（kcp2k 等）——非自研代码不入纪律扫描（M10 批①）
             return false;
         }
 
