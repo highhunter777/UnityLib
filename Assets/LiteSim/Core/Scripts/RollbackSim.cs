@@ -1,0 +1,161 @@
+using System;
+
+namespace LiteSim
+{
+    /// <summary>
+    /// 回滚执行器（《状态同步实施方案》§5.3–5.4 + M9 决策⑥⑦⑧⑨⑩）：
+    /// 预测推进（沿用上一帧、开火不预测）+ 真实输入判定（不符则 Restore(F-1) → 重放 F..last）
+    /// + 越界退化（停预测前进，§5.4 正确性兜底）+ 单渲染帧回滚上限（防雪崩）。
+    ///
+    /// - FrameDriver 保持 M8 原样（决策⑦ 组合优于修改）：累加器/追帧仍由它承担；
+    ///   逐逻辑帧输入经 onLogicalFrame 回调在帧间刷新（多逻辑帧/渲染帧时每帧各自的预测输入）。
+    /// - 帧号约定（决策②）：帧号 = 已执行步数（Step 末 Frame 递增）；"输入 k"由第 k 步消费（Frame k-1 → k）；
+    ///   Capture 在每步后记录帧 k，构造期先把初始状态锚定为帧 0——第 1 步的回滚（Restore(0)）天然可用。
+    ///   收到步 F 的真实输入时 Frame ≥ F 即"已用预测跑过"，target = 帧 F-1（= F 步执行前状态），与 §5.4 伪码自洽。
+    /// - 同运行时红线（决策⑩）：全部验收在 .NET 侧闭环；跨运行时存在 FMA 1-ULP 底噪（M8 收口批实测）。
+    /// - 所有权：initialState 由调用方构造后移交本类（§8.3：BattleContext 显式 new，禁入容器）。
+    /// </summary>
+    public sealed class RollbackSim
+    {
+        private readonly SimMapData _map;
+        private readonly int _playerCount;
+        private readonly SimWorldState _state;
+        private readonly SnapshotRing _ring;
+        private readonly InputHistory _history;
+        private readonly FrameDriver _driver;
+        private readonly SimInputFrame[] _tickInputs;   // 当前逻辑帧使用的输入（帧间经 OnLogicalFrame 刷新）
+        private readonly bool[] _tickPredicted;
+        private bool _halted;
+        private int _rollbacksThisFrame;
+        private int _rollbackCount;
+        private int _deferredCount;
+        private int _haltCount;
+
+        /// <summary>回滚回调（M11 View.Realign 接缝预留：参数 = 重放到的帧号）。Sim 不做 IO——订阅方自理。</summary>
+        public Action<int> OnRollback;
+
+        public RollbackSim(SimWorldState initialState, SimMapData map, SimInputFrame[] inputTemplate)
+        {
+            _state = initialState;
+            _map = map;
+            _playerCount = inputTemplate.Length;
+            _ring = new SnapshotRing(SimConfig.MaxRollbackFrames + 1);
+            _history = new InputHistory(SimConfig.MaxInputHistory, inputTemplate.Length);
+            _driver = new FrameDriver();
+            _tickInputs = new SimInputFrame[inputTemplate.Length];
+            Array.Copy(inputTemplate, _tickInputs, inputTemplate.Length); // 身份基线（EntityId 必带、控制量建议零）——冷启动预测起点
+            _tickPredicted = new bool[inputTemplate.Length];
+            _ring.Capture(0, _state);      // 帧号锚点：初始状态 = 帧 0（第 1 步回滚的 Restore 目标，帧前状态唯一来源）
+        }
+
+        public SimWorldState State => _state;
+        public bool Halted => _halted;
+        public int RollbackCount => _rollbackCount;
+        public int DeferredRollbacks => _deferredCount;
+        public int HaltCount => _haltCount;
+
+        /// <summary>诊断/测试用：重放段逐帧修正验证（M9 决策⑨）。</summary>
+        public SnapshotRing Ring => _ring;
+
+        /// <summary>预测推进。停预测（越界退化）期间不推进——§5.4 强制等待。</summary>
+        public void Tick(float realDelta)
+        {
+            if (_halted) return;
+
+            PrepareNext(_state.Frame + 1);   // 每渲染帧预备下一帧输入（幂等：历史未变则结果不变）
+            _rollbacksThisFrame = 0;         // 渲染帧边界（决策⑧上限的计数窗口）
+            _driver.Tick(realDelta, _state, _map, _tickInputs, OnLogicalFrame);
+        }
+
+        /// <summary>
+        /// 真实输入到达（M10 由网络层喂；M9 由测试注入）：入史 → 判定（帧已模拟 且 曾用预测输入 且 逐位不符
+        /// → Restore(F-1) → 重放 F..last，§5.4）。早到帧（frame &gt; 已执行帧号）仅入史供模拟时取用，
+        /// 并解锁停预测（决策④恢复语义：确认流越过不可恢复窗口即续跑）。
+        /// </summary>
+        public void OnRealInput(int frame, SimInputFrame[] realInputs)
+        {
+            if (frame > _state.Frame)
+            {
+                _history.Overwrite(frame, realInputs);
+                if (_halted) _halted = false;
+                return;
+            }
+
+            // 覆盖前读取判定材料（Overwrite 会就地覆写内部数组）
+            bool anyPredicted = _history.IsAnyPredicted(frame);
+            bool differs = anyPredicted && _history.Differs(frame, realInputs);
+            _history.Overwrite(frame, realInputs);
+
+            if (!differs) return;                            // 预测正确：零回滚（§5.4 自检；重复确认幂等）
+            if (_halted) return;                              // 停预测期不回滚（真实值已入史）
+            if (_rollbacksThisFrame >= SimConfig.MaxRollbacksPerFrame)
+            {
+                _deferredCount++;                            // 决策⑧：丢弃（v3 权威快照覆盖兜底）
+                return;
+            }
+
+            ExecuteRollback(frame);
+        }
+
+        private void OnLogicalFrame(SimWorldState s)
+        {
+            _ring.Capture(s.Frame, s);                        // Step 后捕获（决策②）
+            _history.Record(s.Frame, _tickInputs, _tickPredicted);
+            PrepareNext(s.Frame + 1);                         // 下一逻辑帧输入（多逻辑帧各自决议）
+        }
+
+        /// <summary>下一逻辑帧输入决议：历史早到真实输入优先（逐玩家）；否则沿用上一帧（Buttons=0——开火不预测，决策⑥）。</summary>
+        private void PrepareNext(int nextFrame)
+        {
+            bool hasReal = _history.TryGet(nextFrame, out var stored, out var pred);
+            bool hasBase = _history.TryGet(nextFrame - 1, out var baseInputs, out var _);
+            if (!hasBase) baseInputs = _tickInputs;           // 首帧无前驱 → 零输入预测
+
+            for (int i = 0; i < _playerCount; i++)
+            {
+                if (hasReal && !pred[i])
+                {
+                    _tickInputs[i] = stored[i];               // 已确认真实输入
+                    _tickPredicted[i] = false;
+                }
+                else
+                {
+                    _tickInputs[i] = baseInputs[i];           // 沿用移动/朝向（§5.3）
+                    _tickInputs[i].Buttons = 0u;              // 开火不预测（离散事件猜错代价极大）
+                    _tickPredicted[i] = true;
+                }
+            }
+        }
+
+        private void ExecuteRollback(int frame)
+        {
+            int target = frame - 1;
+            int last = _state.Frame;                          // 回滚前已执行到的帧号（先取——Restore 会改写 Frame）
+            if (!_ring.TryRestore(target, _state))
+            {
+                _halted = true;                               // 决策④：超出深度停预测（强制等待）
+                _haltCount++;
+                return;
+            }
+
+            for (int f = frame; f <= last; f++)                // §5.4：重放第 F..last 步（Step 内 Frame 递增，上界固定）
+            {
+                if (!_history.TryGet(f, out var inputs, out var _))
+                {
+                    _halted = true;                           // 防御（环窗口 ⊆ 历史窗口，理论不达）
+                    _haltCount++;
+                    return;
+                }
+
+                SimStep.Step(_state, _map, inputs);
+                _ring.Capture(_state.Frame, _state);          // 重放段快照同步更新（后续回滚的基点）
+                _state.Events.Clear();                        // 决策⑫：重放期事件不消费即清
+            }
+
+            PrepareNext(_state.Frame + 1);                     // 回滚后下一帧输入预备
+            _rollbacksThisFrame++;
+            _rollbackCount++;
+            if (OnRollback != null) OnRollback(_state.Frame); // M11 View.Realign 接缝
+        }
+    }
+}

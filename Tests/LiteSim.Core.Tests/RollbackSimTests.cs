@@ -1,0 +1,245 @@
+using System;
+using LiteSim;
+using Xunit;
+
+namespace LiteSim.Tests
+{
+    /// <summary>
+    /// 回滚验收用例组（《M9 实施指导》§2.6/§3，对账 §9 M9 验收行）：
+    /// 人为注入预测错误 → 回滚后状态与"全程真实输入"直跑**完全一致**（终态逐元素 + 重放段逐帧 checksum）；
+    /// 回滚深度 8 可用；超出深度正确退化（停预测 + 恢复续跑）；单渲染帧上限 2；重复确认幂等。
+    /// 全部用例 .NET 侧闭环（同运行时红线，M9 决策⑩）。
+    ///
+    /// 帧号/驱动约定（与 RollbackSim 决策②一致）：帧号 = 已执行步数；**第 k 步消费 script[k]**（script[0] 占位）。
+    /// 延迟 D 确认：tick t 开头（Frame==t）确认步 k = t-D+1——回滚 target = 帧 k-1 = Frame-D，
+    /// D=8 恰为环窗口最老帧（深度 8），D=9 越界。尾部 D 步逐帧排水确认（Tick(0f) 重置单渲染帧窗口且不推进）。
+    /// 初始状态 = 帧 0 由 RollbackSim 构造期捕获——第 1 步的回滚天然可用，无需预喂。
+    /// </summary>
+    public class RollbackSimTests
+    {
+        private const int StepCount = 150;
+        private const int Delay = 8;
+        private const ulong ScriptSeed = 0x0C0FFEE0D15EA5EUL;
+
+        // ---- 脚本与真值 ----
+
+        private static SimInputFrame[][] MakeScript(ulong seed, int steps, long[] players)
+        {
+            var rng = new SimRng(seed);
+            var script = new SimInputFrame[steps + 1][];
+            script[0] = new SimInputFrame[players.Length]; // 占位（帧号从 1 起）
+            for (int f = 1; f <= steps; f++)
+            {
+                var row = new SimInputFrame[players.Length];
+                for (int i = 0; i < row.Length; i++)
+                {
+                    row[i].EntityId = players[i];
+                    row[i].MoveX = rng.NextFloat01() * 2f - 1f;
+                    row[i].MoveZ = rng.NextFloat01() * 2f - 1f;
+                    row[i].Yaw = rng.NextFloat01() * SimTrig.TwoPi;
+                    row[i].Buttons = (rng.NextUInt32() & 3u) == 0u ? SimInputFrame.ButtonFire : 0u;
+                }
+                script[f] = row;
+            }
+            return script;
+        }
+
+        /// <summary>静止零输入脚本：预测从零值沿用（§5.3），真实输入与预测逐位相同——"预测正确"场景。</summary>
+        private static SimInputFrame[][] MakeConstantScript(int steps, long[] players)
+        {
+            var script = new SimInputFrame[steps + 1][];
+            script[0] = new SimInputFrame[players.Length];
+            for (int f = 1; f <= steps; f++)
+            {
+                script[f] = new[]
+                {
+                    new SimInputFrame { EntityId = players[0], MoveX = 0f, MoveZ = 0f, Yaw = 0f, Buttons = 0u },
+                    new SimInputFrame { EntityId = players[1], MoveX = 0f, MoveZ = 0f, Yaw = 0f, Buttons = 0u },
+                };
+            }
+            return script;
+        }
+
+        /// <summary>真值直跑：全程真实输入、无预测无回滚；seq[f] = 执行完第 f 步的 checksum。</summary>
+        private static (uint[] Checksums, SimWorldState Final) RunTruth(SimInputFrame[][] script, SimMapData map, SimWorldState world)
+        {
+            int n = script.Length - 1;
+            var seq = new uint[n + 1];
+            for (int f = 1; f <= n; f++)
+            {
+                var inputs = (SimInputFrame[])script[f].Clone(); // Step 就地排序——不污染脚本
+                SimStep.Step(world, map, inputs);
+                seq[f] = SimChecksum.ComputeChecksum(world);
+            }
+            return (seq, world);
+        }
+
+        /// <summary>身份模板：EntityId 必带、控制量零值——冷启动预测基线（否则预测 EntityId=0 与真实永不相等）。</summary>
+        private static SimInputFrame[] IdentityTemplate(long[] players)
+        {
+            var template = new SimInputFrame[players.Length];
+            for (int i = 0; i < players.Length; i++) template[i].EntityId = players[i];
+            return template;
+        }
+
+        /// <summary>延迟确认驱动：tick t 开头确认步 k = t-delay+1（k≥1）；尾部 delay 步逐帧排水。</summary>
+        private static RollbackSim RunDelayed(SimInputFrame[][] script, SimMapData map, long[] players, int delay)
+        {
+            int n = script.Length - 1;
+            var sim = new RollbackSim(SimChecksumBaselineSpec.BuildWorld(), map, IdentityTemplate(players));
+
+            for (int t = 0; t < n; t++)
+            {
+                int k = t - delay + 1;
+                if (k >= 1) sim.OnRealInput(k, script[k]);
+                sim.Tick(SimConfig.Dt);
+            }
+            for (int k = n - delay + 1; k <= n; k++) // 尾部排水：剩余 delay 步逐帧确认（Tick(0) 重置回滚窗口）
+            {
+                sim.OnRealInput(k, script[k]);
+                sim.Tick(0f);
+            }
+            return sim;
+        }
+
+        private static (SimMapData Map, long[] Players) Scenario()
+        {
+            var map = SimChecksumBaselineSpec.BuildMap();
+            var world = SimChecksumBaselineSpec.BuildWorld();
+            return (map, SimChecksumBaselineSpec.PlayerIds(world));
+        }
+
+        // ---- §9 M9 验收①：注入预测错误 → 回滚后与"全程真实输入"完全一致 ----
+
+        [Fact]
+        public void 回滚_注入预测错误后与全程真实输入逐帧一致()
+        {
+            var (map, players) = Scenario();
+            var script = MakeScript(ScriptSeed, StepCount, players);
+
+            var (truthChecksums, truthFinal) = RunTruth(script, map, SimChecksumBaselineSpec.BuildWorld());
+            var sim = RunDelayed(script, map, players, Delay);
+
+            Assert.True(sim.RollbackCount > 0);                    // 机制确被触发（随机脚本下沿用预测几乎必错）
+            Assert.False(sim.Halted);                               // 深度 8 恰在环窗口——全程不越界
+            AssertWorldsElementWiseEqual(sim.State, truthFinal);   // 终态逐元素一致（§9 验收）
+
+            // 决策⑨：重放段逐帧修正——环内最近 9 帧 checksum 与真值逐帧对齐
+            var probe = new SimWorldState();
+            for (int f = StepCount - Delay; f <= StepCount; f++)
+            {
+                Assert.True(sim.Ring.TryRestore(f, probe));
+                Assert.Equal(truthChecksums[f], SimChecksum.ComputeChecksum(probe));
+            }
+        }
+
+        [Fact]
+        public void 预测正确_零回滚且与真值一致()
+        {
+            var (map, players) = Scenario();
+            var script = MakeConstantScript(StepCount, players);   // 静止零输入：预测（零起点沿用）== 真实
+
+            var (_, truthFinal) = RunTruth(script, map, SimChecksumBaselineSpec.BuildWorld());
+            var sim = RunDelayed(script, map, players, Delay);
+
+            Assert.Equal(0, sim.RollbackCount);                    // §5.4：预测正确时零回滚
+            Assert.Equal(0, sim.DeferredRollbacks);
+            Assert.False(sim.Halted);
+            AssertWorldsElementWiseEqual(sim.State, truthFinal);
+        }
+
+        // ---- §9 M9 验收②③：回滚深度 8 可用；超出深度正确退化 ----
+
+        [Fact]
+        public void 退化_超出深度_停预测且未来真实输入可恢复()
+        {
+            var (map, players) = Scenario();
+            var script = MakeScript(ScriptSeed, 30, players);
+
+            var sim = new RollbackSim(SimChecksumBaselineSpec.BuildWorld(), map, IdentityTemplate(players));
+            for (int t = 0; t <= 10; t++)
+            {
+                int k = t - Delay;                                 // 延迟 9：tick t 确认步 k = t-8（Frame==t）
+                if (k >= 1) sim.OnRealInput(k, script[k]);
+                sim.Tick(SimConfig.Dt);
+            }
+
+            // tick 9 确认步 1：target = 帧 0 已被帧 9 逐出（容量 9 持帧 1..9）→ 越界 → 停预测
+            Assert.True(sim.Halted);
+            Assert.Equal(1, sim.HaltCount);
+
+            int frozen = sim.State.Frame;                           // = 9
+            sim.Tick(SimConfig.Dt);
+            sim.Tick(SimConfig.Dt);
+            Assert.Equal(frozen, sim.State.Frame);                  // 停预测期间不推进
+
+            // 决策④恢复语义：未来步真实输入到达 → 解锁续跑（不可恢复的过去由 M10 权威快照覆盖兜底）
+            sim.OnRealInput(frozen + 5, script[30]);
+            Assert.False(sim.Halted);
+            sim.Tick(SimConfig.Dt);
+            Assert.Equal(frozen + 1, sim.State.Frame);               // 续跑推进
+        }
+
+        // ---- §5.4：单渲染帧回滚上限 2 + 重复确认幂等 ----
+
+        [Fact]
+        public void 防雪崩_单渲染帧回滚上限2且回滚丢弃计数()
+        {
+            var (map, players) = Scenario();
+            var script = MakeScript(ScriptSeed, 10, players);
+
+            var sim = new RollbackSim(SimChecksumBaselineSpec.BuildWorld(), map, IdentityTemplate(players));
+            for (int t = 0; t < 5; t++) sim.Tick(SimConfig.Dt);     // 步 1..5 全预测推进（Frame=5，环持帧 0..5）
+
+            // 同一渲染帧内 3 次不符确认 → 恰回滚 2 次、第 3 次丢弃
+            sim.OnRealInput(1, OtherThan(script[1]));
+            sim.OnRealInput(2, OtherThan(script[2]));
+            sim.OnRealInput(3, OtherThan(script[3]));
+
+            Assert.Equal(2, sim.RollbackCount);
+            Assert.Equal(1, sim.DeferredRollbacks);
+
+            // 重复确认已真实化的步 → 幂等，不再回滚（风险 5 对策）
+            sim.OnRealInput(1, OtherThan(script[1]));
+            Assert.Equal(2, sim.RollbackCount);
+        }
+
+        // ---- 辅助 ----
+
+        private static SimInputFrame[] OtherThan(SimInputFrame[] inputs)
+        {
+            var copy = (SimInputFrame[])inputs.Clone();
+            for (int i = 0; i < copy.Length; i++)
+            {
+                copy[i].MoveX = copy[i].MoveX + 1f;   // 必与沿用预测逐位不符
+                copy[i].Buttons = 0u;
+            }
+            return copy;
+        }
+
+        /// <summary>逐元素比较两个世界（含全部槽位逻辑字段与平面数组——"完全一致"的可执行形态）。</summary>
+        private static void AssertWorldsElementWiseEqual(SimWorldState a, SimWorldState b)
+        {
+            Assert.Equal(b.Frame, a.Frame);
+            Assert.Equal(b.RngState, a.RngState);
+
+            for (int i = 0; i < SimConfig.MaxEntities; i++)
+            {
+                Assert.Equal(b.Entities[i].Id, a.Entities[i].Id);
+                Assert.Equal(b.Entities[i].Pos.X, a.Entities[i].Pos.X);
+                Assert.Equal(b.Entities[i].Pos.Y, a.Entities[i].Pos.Y);
+                Assert.Equal(b.Entities[i].Pos.Z, a.Entities[i].Pos.Z);
+                Assert.Equal(b.Entities[i].Vel.X, a.Entities[i].Vel.X);
+                Assert.Equal(b.Entities[i].Vel.Y, a.Entities[i].Vel.Y);
+                Assert.Equal(b.Entities[i].Vel.Z, a.Entities[i].Vel.Z);
+                Assert.Equal(b.Entities[i].Yaw, a.Entities[i].Yaw);
+                Assert.Equal(b.Entities[i].Hp, a.Entities[i].Hp);
+                Assert.Equal(b.Entities[i].Flags, a.Entities[i].Flags);
+            }
+
+            for (int i = 0; i < a.AliveBitmap.Length; i++) Assert.Equal(b.AliveBitmap[i], a.AliveBitmap[i]);
+            for (int i = 0; i < a.Globals.Length; i++) Assert.Equal(b.Globals[i], a.Globals[i]);
+            for (int i = 0; i < a.CustomData.Length; i++) Assert.Equal(b.CustomData[i], a.CustomData[i]);
+        }
+    }
+}
