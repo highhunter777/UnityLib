@@ -9,6 +9,7 @@
 [Uu]serSettings/
 [Mm]emoryCaptures/
 [Rr]ecordings/
+CrashDumps/
 
 # 工程产物目录（YooAsset 真机包 / HybridCLR 克隆仓库等，不入库）
 Bundles/
@@ -33,10 +34,13 @@ XLuaSamples/
 
 # 双轨编译的手写工程文件（被 Tests.slnx / 测试工程引用，保留入库）
 !Assets/LiteFramework/*.csproj
+!Assets/LiteSim/Core/*.csproj
+!Assets/Tools/DisciplineScanner/*.csproj
 !Tests/LiteFramework.Core.Tests/*.csproj
+!Tests/LiteSim.Core.Tests/*.csproj
 
-# dotnet 侧构建输出（Directory.Build.props 重定向到点目录）
-Assets/LiteFramework/.dotnet/
+# dotnet 侧构建输出（Directory.Build.props 重定向到点目录；三个工程的 .dotnet 一并覆盖）
+.dotnet/
 
 # ===== 系统文件 =====
 .DS_Store
@@ -128,6 +132,7 @@ Packages/com.unity.pipeline/
 
 # ===== 本机 agent 规范（不入库；如需入库请显式 git add -f）=====
 CODEBUDDY.md
+CODELY.md
 /Packages/manifest.json
 /Packages/packages-lock.json
 /.claude/
