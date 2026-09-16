@@ -72,11 +72,25 @@ MonoBehaviour:
       AssetTags: 
       ActiveRuleName: EnableGroup
       Collectors:
-      - CollectPath: Assets/UI
+      - CollectPath: Assets/LiteGame/UI/Screens
         CollectorGUID: 
         CollectorType: 0
         AddressRuleName: AddressByFileName
         PackRuleName: PackSeparately
+        FilterRuleName: CollectAll
+        AssetTags: ui
+        UserData: 
+    - GroupName: LiteGameWidgets
+      GroupDesc: "UI \u63A7\u4EF6\u5E93\u6A21\u677F\uFF0825 \u4EF6\uFF0CM4c\uFF09\u2014\u2014PackDirectory
+        \u76EE\u5F55\u5355\u5305\uFF1Btag ui"
+      AssetTags: 
+      ActiveRuleName: EnableGroup
+      Collectors:
+      - CollectPath: Assets/LiteGame/UI/Widgets
+        CollectorGUID: 
+        CollectorType: 0
+        AddressRuleName: AddressByFileName
+        PackRuleName: PackDirectory
         FilterRuleName: CollectAll
         AssetTags: ui
         UserData: 

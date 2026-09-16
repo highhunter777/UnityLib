@@ -41,13 +41,23 @@ namespace LiteGame
             SafeCall.Invoke(() => Logic.OnShow(data), $"UIForm[{Id}].OnShow");
         }
 
-        /// <summary>池化复用：Recycled →（SetActive true）→ OnShow → Active。OnInit 不重跑。</summary>
+        /// <summary>池化复用：Recycled →（SetActive true）→ OnShow → Active。OnInit 不重跑。
+        /// 例外：<see cref="NeedsReinit"/> 为真（运行期换表后新适配器没建过绑定索引）——补跑 OnInit，否则
+        /// 界面"活着但按钮全不响应"。</summary>
         internal void EnterActiveFromRecycled(IUIData data)
         {
             Transit(UIFormState.Recycled, UIFormState.Active);
             Root.SetActive(true);
+            if (NeedsReinit)
+            {
+                NeedsReinit = false;
+                SafeCall.Invoke(() => Logic.OnInit(this, data), $"UIForm[{Id}].OnInit(换表重建)");
+            }
             SafeCall.Invoke(() => Logic.OnShow(data), $"UIForm[{Id}].OnShow");
         }
+
+        /// <summary>复用前是否需补跑 OnInit（仅在"逻辑换表"后置真，见 <see cref="UIService.MarkLogicStale"/>）。</summary>
+        internal bool NeedsReinit { get; set; }
 
         internal void EnterPaused()
         {

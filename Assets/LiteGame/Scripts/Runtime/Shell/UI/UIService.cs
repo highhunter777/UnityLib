@@ -24,6 +24,7 @@ namespace LiteGame
         private readonly Dictionary<int, UIForm> _forms = new Dictionary<int, UIForm>(16);   // id → 实例（含池中）
         private readonly HashSet<int> _loading = new HashSet<int>();                         // 加载在途（幂等守卫：入字典前的窗口期）
         private readonly HashSet<int> _closing = new HashSet<int>();                         // 关闭在途（转场动画期间防并发 Close 重入）
+        private readonly HashSet<int> _staleLogic = new HashSet<int>();   // 逻辑待更新（运行期增量重填，§2.3）
         private readonly UILayerGroup[] _groups;
         private readonly Transform _root;
         private readonly ITransitionStrategy _transition;
@@ -66,6 +67,7 @@ namespace LiteGame
                 switch (existing.State)
                 {
                     case UIFormState.Recycled:
+                        SwapIfStale(existing);            // 换表重建（运行期增量重填）后再复用
                         Reuse(existing, group, data);
                         return existing;
                     case UIFormState.Active:
@@ -134,6 +136,7 @@ namespace LiteGame
                 form.EnterClosing();
                 GetGroup(form.Info.Layer).Stack.Remove(form);
                 form.Recycle();
+                SwapIfStale(form);                        // OnHide 已跑完 → 此刻换表才安全（顺序不能反）
                 if (form.Info.FullScreen) RecomputeCovering();
                 Log.Info($"UIForm[{formId}] 关闭", "UI");
             }
@@ -174,6 +177,45 @@ namespace LiteGame
         public bool IsOpen(int formId)
             => _forms.TryGetValue(formId, out var f)
                && f.State is UIFormState.Active or UIFormState.Covered or UIFormState.Paused;
+
+        // ---- 逻辑换表：运行期增量重填（M4 §2.3 的"标记待更新"落地）----
+
+        /// <summary>
+        /// 全量打标"逻辑已过期"（幂等）。由重填服务在**清注册表之前**调用——先标后清，窗口内界面仍能用旧表跑完。
+        /// Active 界面**不立刻换表**（§2.3 决策 B：已打开的界面换代码会"一半旧一半新"），等它关闭后再换。
+        /// </summary>
+        public void MarkLogicStale()
+        {
+            foreach (var kv in _forms) _staleLogic.Add(kv.Key);
+        }
+
+        /// <summary>单界面打标（调试口用）。</summary>
+        public void MarkLogicStale(int formId) => _staleLogic.Add(formId);
+
+        /// <summary>
+        /// 重填完成后调用：池中（Recycled）界面立刻换表；Active/Covered/Paused 保留标记，等 Close 时换。
+        /// </summary>
+        public void ApplyStaleLogic()
+        {
+            foreach (var kv in _forms)
+                if (kv.Value.State == UIFormState.Recycled) SwapIfStale(kv.Value);
+        }
+
+        /// <summary>仍带"待更新"标记的界面数（HUD 读数：>0 = 新逻辑尚未在该界面生效）。</summary>
+        public int StaleLogicCount => _staleLogic.Count;
+
+        /// <summary>
+        /// 换表（幂等）：旧适配器解绑并释放 Lua 引用 → 用当前注册表重新解析 → 池中界面标记需补跑 OnInit。
+        /// 只在"已无人在用旧逻辑"时调用（Reuse 之前 / EnterClosing 之后 / ApplyStaleLogic 的池中件）。
+        /// </summary>
+        private void SwapIfStale(UIForm form)
+        {
+            if (!_staleLogic.Remove(form.Id)) return;
+
+            if (form.Logic is LuaBehaviourAdapter old) old.Release();
+            form.Logic = ResolveLogic(form.Info);
+            if (form.State == UIFormState.Recycled) form.NeedsReinit = true;
+        }
 
         // ---- 内部 ----
 
@@ -287,6 +329,7 @@ namespace LiteGame
             into["暂停"] = paused.ToString();
             into["池中"] = recycled.ToString();
             into["加载中"] = loading.ToString();
+            into["待更新"] = StaleLogicCount.ToString();
         }
     }
 }

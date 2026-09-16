@@ -98,6 +98,27 @@ return {
             Call(_onHide, "OnHide");
         }
 
+        /// <summary>持有的逻辑表（换表释放/诊断用）。</summary>
+        public LuaTable Logic => _logic;
+
+        /// <summary>
+        /// 换表释放（M4 §2.3 运行期增量重填）：解绑按钮监听 + 释放 Lua 侧引用（逻辑表与七个回调函数）。
+        /// 幂等（`LuaBase.Dispose` 有 disposed 守卫）；DevReload 走 `env.Dispose` 兜底，二者不冲突。
+        /// **调用前提**：本适配器已不再被任何界面使用（仅在"换表"时调用，见 `UIService.SwapIfStale`）。
+        /// </summary>
+        public void Release()
+        {
+            _index?.UnbindAll();
+            _onInit?.Dispose();
+            _onShow?.Dispose();
+            _onUpdate?.Dispose();
+            _onPause?.Dispose();
+            _onCover?.Dispose();
+            _onReveal?.Dispose();
+            _onHide?.Dispose();
+            _logic?.Dispose();
+        }
+
         /// <summary>ui-API 通用派发（payload 表协议）：onButton{name,fn} / offButton{name} /
         /// setText{name,text} / setVisible{name,visible} / setInteractable{name,on} /
         /// setProgress{name,value} / setProgressRange{name,cur,max} / setHp{name,cur,max} /

@@ -121,8 +121,9 @@ namespace LiteGame
         {
             var scenes = new SceneService();
             var filler = new RegistryFiller(config, lua, uiRegistry, contentRegistry, strategyRegistry);
+            var refill = new LuaRegistryRefillService(lua, uiService, config, uiRegistry, contentRegistry, strategyRegistry);
             return new Fsm<ProcedureOwner>("Game", new ProcedureOwner(),
-                new ProcedureLaunch(s_container, config, scenes, uiRegistry, contentRegistry, strategyRegistry, uiService, redDotRegistry, logicScheduler, uiScheduler, timelineRunner, entityService, audioService),
+                new ProcedureLaunch(s_container, config, scenes, uiRegistry, contentRegistry, strategyRegistry, uiService, redDotRegistry, logicScheduler, uiScheduler, timelineRunner, entityService, audioService, refill),
                 new ProcedurePreload(config, lua, filler, events),
                 new ProcedureMain(),
                 new ProcedureError());

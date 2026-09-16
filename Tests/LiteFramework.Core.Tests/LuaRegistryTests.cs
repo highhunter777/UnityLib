@@ -61,6 +61,41 @@ namespace LiteFramework.Tests
             Assert.Equal(2, _reg.Generation);               // 壳据此丢弃缓存引用
         }
 
+        // ---- 运行期增量重填（M4 §2.3：不重建 env 的轻路径，2026-09-17）----
+
+        [Fact]
+        public void LuaRegistry_多轮重填_Generation单调不回退()
+        {
+            _reg.Fill("Test.A", new FakeLogic());
+            int prev = _reg.Generation;
+
+            for (int round = 1; round <= 3; round++)
+            {
+                _reg.Clear();
+                Assert.True(_reg.Generation > prev, $"第 {round} 轮 Clear 应前进纪元");
+                prev = _reg.Generation;
+
+                _reg.Fill("Test.A", new FakeLogic());
+                Assert.True(_reg.Generation > prev, $"第 {round} 轮 Fill 应前进纪元");
+                prev = _reg.Generation;
+            }
+        }
+
+        [Fact]
+        public void LuaRegistry_连续Clear_空表幂等不动纪元()
+        {
+            int emptyBefore = _reg.Generation;
+            _reg.Clear();                                     // 空表：不前进
+            Assert.Equal(emptyBefore, _reg.Generation);
+
+            _reg.Fill("Test.A", new FakeLogic());
+            int filled = _reg.Generation;
+            _reg.Clear();                                     // 非空：前进一位
+            Assert.Equal(filled + 1, _reg.Generation);
+            _reg.Clear();                                     // 再清（已空）：不再前进
+            Assert.Equal(filled + 1, _reg.Generation);
+        }
+
         // ---- M1 demo 链路（手册 §三 自测：注册测试服务与假适配器）----
 
         [Fact]

@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.Threading;
+using Cysharp.Threading.Tasks;
 using LiteFramework;
 using UnityEngine;
 using XLua;
@@ -119,6 +121,63 @@ namespace LiteGame
         {
             ThrowIfNotInit();
             return _env.DoString(chunk, chunkName);
+        }
+
+        /// <summary>
+        /// 重预载 Lua 文件（运行期增量重填第 ② 步，M4 §2.3）：**不重建 env**，只把 tag `lua` 清单重读一遍
+        /// （LuaPreloader 内部先清 `_scripts`），变更后的 .lua 字节即进缓存，下次 require 命中新内容。
+        /// </summary>
+        public async UniTask RepreloadAsync(CancellationToken ct = default)
+        {
+            ThrowIfNotInit();
+            await _preloader.PreloadAllAsync(ct);
+        }
+
+        /// <summary>
+        /// 清 require 缓存（运行期增量重填第 ④ 步）：按**注册表根前缀**清 `package.loaded`
+        /// （`UI.` / `Content.` / `Strategies.` —— 根集合由 `gen_lua_keys.py` 校验收口，是封闭集）。
+        /// 不清 env 级模块（`Bridge`/`log`/LuaPanda/Core.*）——全清会误伤、且无必要。
+        /// 返回实际清掉的键数。**已知边界**：只清三个根下的模块，其跨根依赖（如 `Core.class`）仍走缓存。
+        /// </summary>
+        public int ClearRequireCacheByRoots(IReadOnlyList<string> roots)
+        {
+            ThrowIfNotInit();
+            if (roots == null || roots.Count == 0) return 0;
+
+            var sb = new System.Text.StringBuilder(roots.Count * 16 + 320);
+            sb.Append("local r={");
+            for (int i = 0; i < roots.Count; i++)
+            {
+                string root = roots[i];
+                if (!IsSafeRoot(root)) continue;
+                if (i > 0) sb.Append(',');
+                sb.Append('"').Append(root).Append('"');
+            }
+            sb.Append("}\nlocal n=0\nfor k in pairs(package.loaded) do\n")
+              .Append("  if type(k)=='string' then\n")
+              .Append("    for i=1,#r do\n")
+              .Append("      local p=r[i]\n")
+              .Append("      if k==p or string.sub(k,1,#p+1)==p..'.' then package.loaded[k]=nil n=n+1 break end\n")
+              .Append("    end\n  end\nend\nreturn n");
+
+            var result = _env.DoString(sb.ToString(), "refill_clear_require");
+            if (result == null || result.Length == 0) return 0;
+            try { return Convert.ToInt32(result[0]); }
+            catch (Exception) { return 0; }
+        }
+
+        /// <summary>根名白名单（点分/引号等字符不得进 Lua 片段——本方法拼的是 Lua 源码）。</summary>
+        private static bool IsSafeRoot(string root)
+        {
+            if (string.IsNullOrEmpty(root)) return false;
+            for (int i = 0; i < root.Length; i++)
+            {
+                char c = root[i];
+                bool ok = c == '_' || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
+                          (i > 0 && c >= '0' && c <= '9');
+                if (!ok) return false;
+            }
+            return true;
         }
 
         /// <summary>

@@ -1,3 +1,4 @@
+using Cysharp.Threading.Tasks;
 using TMPro;
 using System;
 using System.Collections.Generic;
@@ -12,7 +13,8 @@ namespace LiteGame.UI
     /// 模板来自 `Assets/LiteGame/UI/Widgets/`（由 `LiteGame.Editor/WidgetPrefabBuilder` 确定性生成，25 件）；
     /// 模板件的结构/行为断言已归 `WidgetPrefabCheck`（编辑态 + Play 态 25/25 PASS）——本页只保留
     /// **与模板无关**的两条（UIDataBinder 去重、绑定/命令式所有权互斥），并负责"一页全展"。
-    /// 加载：编辑器用 AssetDatabase（dev 页）；真机走 YooAsset 地址加载（待收集组，规划 §8.4 待办）。
+    /// 加载：编辑器用 AssetDatabase（dev 页快路径）；**真机走 YooAsset 运行时加载**（收集组 `LiteGameWidgets`，
+    /// 2026-09-17 补齐——原真机分支直接返回 null）。异步化走 UniTask（项目红线：禁原生协程）。
     /// </summary>
     public class UIDemoPage : MonoBehaviour
     {
@@ -26,17 +28,21 @@ namespace LiteGame.UI
             "RedDot", "FlyText", "GuideHighlight", "EventRelay", "SafeArea",
         };
 
+        private const string WidgetDir = "Assets/LiteGame/UI/Widgets";
+
         private int _pass, _fail;
 
-        private void Awake()
+        private void Awake() => BuildAsync().Forget();       // 模板加载是异步的（真机分支），断言排在构建之后
+
+        private async UniTaskVoid BuildAsync()
         {
-            BuildFromTemplates();
+            await BuildFromTemplatesAsync();
             RunChecks();
         }
 
         // ---------------- 一页全展（模板实例化） ----------------
 
-        private void BuildFromTemplates()
+        private async UniTask BuildFromTemplatesAsync()
         {
             var content = CreateNode("Content", new Vector2(20f, -20f));
             content.sizeDelta = new Vector2(1280f, 2800f);
@@ -47,7 +53,7 @@ namespace LiteGame.UI
 
             foreach (var name in Templates)
             {
-                var inst = LoadTemplate(name);
+                var inst = await LoadTemplateAsync(name);
                 if (inst == null) { missing++; continue; }
                 var rt = (RectTransform)inst.transform;
                 rt.SetParent(content, false);
@@ -94,17 +100,25 @@ namespace LiteGame.UI
             if (cd != null) cd.StartCountdown(60f);
         }
 
-        private static GameObject LoadTemplate(string name)
+        /// <summary>模板加载：编辑器走 AssetDatabase（快路径）；真机走 YooAsset 运行时加载（收集组 LiteGameWidgets）。
+        /// 编辑器下 AssetDatabase 未命中（例如资源刚生成未导入）时同样落到运行时路径——两条路都不通才返回 null。</summary>
+        private static async UniTask<GameObject> LoadTemplateAsync(string name)
         {
+            string path = $"{WidgetDir}/{name}.prefab";
 #if UNITY_EDITOR
-            var prefab = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>(
-                $"Assets/LiteGame/UI/Widgets/{name}.prefab");
-            return prefab != null ? Instantiate(prefab) : null;
-#else
-            // 真机：待 YooAsset 收集组（Assets/LiteGame/UI/）与地址加载接入——规划 §8.4 待办
-            Log($"模板 {name} 未接入运行时加载（收集组待办）");
-            return null;
+            var asset = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>(path);
+            if (asset != null) return UnityEngine.Object.Instantiate(asset);
 #endif
+            try
+            {
+                var prefab = await AssetService.LoadAssetAsync<GameObject>(path);
+                return prefab != null ? UnityEngine.Object.Instantiate(prefab) : null;
+            }
+            catch (Exception ex)
+            {
+                Log($"模板 {name} 运行时加载失败（核对收集组 LiteGameWidgets）：{ex.GetType().Name}:{ex.Message}");
+                return null;
+            }
         }
 
         // ---------------- 断言（只留与模板无关者） ----------------
@@ -185,7 +199,9 @@ namespace LiteGame.UI
             else { _fail++; Log($"FAIL {name}"); }
         }
 
-        private void LogSummary(string message) => LiteFramework.Log.Info(message, "WidgetCheck");
-        private void Log(string message) => LiteFramework.Log.Info(message, "WidgetCheck");
+        // 静态日志出口：真机加载分支（LoadTemplateAsync）是静态方法，且原实现把实例方法 Log 用在静态上下文里
+        // （被 #if UNITY_EDITOR 掩盖的编译错误——非编辑器平台必挂）。
+        private static void LogSummary(string message) => LiteFramework.Log.Info(message, "WidgetCheck");
+        private static void Log(string message) => LiteFramework.Log.Info(message, "WidgetCheck");
     }
 }
