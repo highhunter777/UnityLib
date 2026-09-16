@@ -75,7 +75,7 @@ namespace LiteSim.Tests
             SimWorldState snapshot = null;
             for (int f = 0; f < frames; f++)
             {
-                MakeInputs(inputRng, players, inputs);
+                MakeInputs(ref inputRng, players, inputs);
                 SimStep.Step(s, map, inputs);
                 seq[f] = SimChecksum.ComputeChecksum(s);
 
@@ -97,8 +97,10 @@ namespace LiteSim.Tests
             return sb.ToString();
         }
 
-        /// <summary>脚本输入：外部 SimRng 生成（与世界 RngState 无关——玩家行为不属于逻辑状态）。</summary>
-        private static void MakeInputs(SimRng rng, long[] players, SimInputFrame[] inputs)
+        /// <summary>脚本输入：外部 SimRng 生成（与世界 RngState 无关——玩家行为不属于逻辑状态）。
+        /// 注意：SimRng 是可变 struct，必须以 ref 传入推进调用方状态——按值传参会把输入流冻结在首帧
+        /// （跨运行时双跑对账时发现的历史缺陷，2026-09-16 修复；修复前基线为同一帧输入重复 3000 次）。</summary>
+        private static void MakeInputs(ref SimRng rng, long[] players, SimInputFrame[] inputs)
         {
             for (int i = 0; i < inputs.Length; i++)
             {
