@@ -88,16 +88,17 @@ Assets/StateMachine.meta
 
 # ===== 工程配置与工具链（不入库；克隆后自备清单见 Docs/克隆后自备清单.md）=====
 # 说明：仓库只保留自研框架代码/预制品/文档。以下为工程配置与本地工具链：
-#       ProjectSettings（Unity 工程设置，缺失则无法直接打开工程）、Luban（生成器 6.1M 二进制）、
+#       ProjectSettings（Unity 工程设置，缺失则无法直接打开工程）、
 #       Tools（XLua 工具）、Packages/MCPForUnity（编辑器自动化桥；Packages/ 整体不入库，manifest/lock 由本机自备、见下方本机 agent 规范段）。
 #       如需入库请显式 `git add -f <路径>`。
 /ProjectSettings/
-# Luban：**表源入库**（2026-09-17 决策）——`Data/*.xlsx` 是配置表的唯一真相，不入库会导致
-# 换机 regen 用旧表源覆盖出与入库产物不一致的路径（曾致界面加载失败）。生成器（LubanGenerater 6.1M）、
-# output/、__pycache__ 仍不入库。注意 gitignore 语义：必须用 `/Luban/*` 而非 `/Luban/`，
-# 否则父目录被排除后无法用 `!` 重新包含子目录。
-/Luban/*
-!/Luban/Data/
+# Luban：**整条链入库**（2026-09-17 决策，分两步）——表源 `Data/*.xlsx` 是配置表唯一真相，
+# 生成器与脚本/schema（LubanGenerater 155 文件 6.1M 二进制、gen.bat / gen.sh / gen_lua_keys.py、
+# luban.conf、Defines/builtin.xml）是"换机可复现"的前提；曾因表源不入库导致换机 regen 用旧表源
+# 覆盖出与入库产物不一致的路径（界面加载失败）。
+# 仍不入库的只有生成中间物与缓存：output/、__pycache__/。
+/Luban/output/
+/Luban/__pycache__/
 /Tools/
 Packages/MCPForUnity/
 
