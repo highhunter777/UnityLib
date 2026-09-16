@@ -30,6 +30,12 @@ namespace LiteSim
         /// <summary>命中延迟补偿回溯窗口（M10，§3.4.1；0 = 关闭，退化为提前量判定）。</summary>
         public const int LagCompHistory = 16;
 
+        /// <summary>输入历史容量（§5.5：最近 32 帧全体输入——回滚重放 + M11 重连补发余量，M9 决策⑤）。</summary>
+        public const int MaxInputHistory = 32;
+
+        /// <summary>单渲染帧回滚次数上限（§5.4 防雪崩，M9 决策⑧）。</summary>
+        public const int MaxRollbacksPerFrame = 2;
+
         /// <summary>每实体自定义状态字节数（#2：平面数组，slot*32+offset 寻址）。</summary>
         public const int CustomBytesPerEntity = 32;
 
