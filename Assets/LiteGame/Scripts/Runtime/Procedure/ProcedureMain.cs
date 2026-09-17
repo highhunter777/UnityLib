@@ -6,12 +6,13 @@ namespace LiteGame
 {
     /// <summary>
     /// 主流程占位（M2）。M5 纵向切片起在这里接主菜单 → 进场景 → 战斗 → 结算的流程树。
+    /// 后续阶段（Match/Battle/Result）见 `ProcedureId` 的预留说明与《UI扩展能力设计》§9.1。
     /// </summary>
-    public sealed class ProcedureMain : ProcedureBase<ProcedureOwner>
+    public sealed class ProcedureMain : ProcedureStageBase<ProcedureId, ProcedureArgs>
     {
-        protected override void RunAsync(Fsm<ProcedureOwner> fsm, CancellationToken ct)
+        protected override void RunAsync(IStageHost<ProcedureId, ProcedureArgs> m, in ProcedureArgs req, CancellationToken ct)
         {
-            // 空转待命——无 ChangeState 请求即停在本流程
+            // 空转待命——无 Request 请求即停在本阶段
         }
     }
 }

@@ -9,9 +9,9 @@ namespace LiteGame
     /// 预载流程（M3 版）：资源初始化 → 配置加载 → **M3 锚点五步序**（手册步骤 4 / M3 指导 §2.4）——
     /// ① Lua 全量预载 → ② Init env + 执行 main.lua → ③ RegistryFiller 读三件套填充注册表 →
     /// ④ 报告整批统一判定（有失败即 Fail 阻断）→ ⑤ 放行进 Main。
-    /// LuaComponent/RegistryFiller 由装配点构造注入（依赖不从 Owner 取）。
+    /// LuaComponent/RegistryFiller 由装配点构造注入（依赖不从 payload 取）。
     /// </summary>
-    public sealed class ProcedurePreload : ProcedureBase<ProcedureOwner>
+    public sealed class ProcedurePreload : ProcedureStageBase<ProcedureId, ProcedureArgs>
     {
         private readonly IConfigService _config;
         private readonly LuaComponent _lua;
@@ -26,10 +26,10 @@ namespace LiteGame
             _events = events ?? throw new ArgumentNullException(nameof(events));
         }
 
-        protected override void RunAsync(Fsm<ProcedureOwner> fsm, CancellationToken ct)
-            => RunAsyncCore(fsm, ct).Forget();
+        protected override void RunAsync(IStageHost<ProcedureId, ProcedureArgs> m, in ProcedureArgs req, CancellationToken ct)
+            => RunAsyncCore(m, ct).Forget();
 
-        private async UniTask RunAsyncCore(Fsm<ProcedureOwner> fsm, CancellationToken ct)
+        private async UniTask RunAsyncCore(IStageHost<ProcedureId, ProcedureArgs> m, CancellationToken ct)
         {
             try
             {
@@ -49,20 +49,20 @@ namespace LiteGame
                 {
                     foreach (var f in report.Failures)
                         Log.Error($"注册表填充失败 [{f.kind}] {f.key}:{f.reason}", "Lua");
-                    Fail(fsm, new InvalidOperationException(
-                            $"注册表填充失败 {report.Failed}/{report.Total}——阻止进 Main（§3.4 fail-fast，不做带病启动）"),
-                        nameof(RunAsyncCore));
-                    fsm.ChangeState<ProcedureError>();
+                    var ex = new InvalidOperationException(
+                        $"注册表填充失败 {report.Failed}/{report.Total}——阻止进 Main（§3.4 fail-fast，不做带病启动）");
+                    Fail(m, ex, nameof(RunAsyncCore));
+                    m.Request(ProcedureId.Error, new ProcedureArgs(ex));   // 失败原因随 payload 交错误流程
                     return;
                 }
 
-                fsm.ChangeState<ProcedureMain>();                // ⑤ 放行
+                m.Request(ProcedureId.Main);                     // ⑤ 放行
             }
             catch (OperationCanceledException) { /* 正常取消，静默 */ }
             catch (Exception ex)
             {
-                Fail(fsm, ex, nameof(RunAsyncCore));
-                fsm.ChangeState<ProcedureError>();
+                Fail(m, ex, nameof(RunAsyncCore));
+                m.Request(ProcedureId.Error, new ProcedureArgs(ex));
             }
         }
     }

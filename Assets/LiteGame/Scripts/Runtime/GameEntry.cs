@@ -11,7 +11,7 @@ namespace LiteGame
     public sealed class GameEntry : MonoBehaviour
     {
         private static ServiceContainer s_container;
-        private static Fsm<ProcedureOwner> s_fsm;
+        private static StageMachine<ProcedureId, ProcedureArgs> s_fsm;   // 通用流程状态机（2026-09-17 A 路线）
         private bool _active;
 
         /// <summary>组件 Awake 的唯一入口：**只许注册，不许解析**；装配密封后抛。</summary>
@@ -97,7 +97,7 @@ namespace LiteGame
             s_container.RegisterInstance<IUIClock>(uiClock);
             s_container.RegisterInstance<IWallClock>(wallClock);
             s_container.RegisterInstance<IEventCenter>(events);
-            s_container.RegisterInstance<Fsm<ProcedureOwner>>(s_fsm = CreateFsm(config, lua, events, uiService, uiRegistry, contentRegistry, strategyRegistry, redDotRegistry, logicScheduler, uiScheduler, timelineRunner, entityService, audioService));
+            s_container.RegisterInstance<StageMachine<ProcedureId, ProcedureArgs>>(s_fsm = CreateMachine(config, lua, events, uiService, uiRegistry, contentRegistry, strategyRegistry, redDotRegistry, logicScheduler, uiScheduler, timelineRunner, entityService, audioService));
             s_container.RegisterInstance<SettingService>(settings);
             s_container.RegisterInstance<GameSettings>(gameSettings);
 
@@ -110,10 +110,12 @@ namespace LiteGame
         }
 
         /// <summary>
-        /// 流程三件 + 错误流程（M2）。业务服务在 ProcedureLaunch 装配（注册 IConfigService/SceneService → Seal）；
-        /// 流程依赖在装配点（本 Awake）构造注入存为流程字段——流程依赖不从 Owner 取（局部服务定位器同罪）。
+        /// 流程四阶段（M2；2026-09-17 A 路线：`Fsm&lt;TOwner&gt;` → `StageMachine&lt;ProcedureId, ProcedureArgs&gt;`）。
+        /// 业务服务在 ProcedureLaunch 装配（注册 IConfigService/SceneService → Seal）；
+        /// 流程依赖在装配点（本 Awake）构造注入存为流程字段——依赖不从 payload 取（局部服务定位器同罪）。
+        /// 流程间传参走 `ProcedureArgs` payload（编译期强类型；Owner 载体已退休）。
         /// </summary>
-        private static Fsm<ProcedureOwner> CreateFsm(ConfigService config, LuaComponent lua, EventCenter events,
+        private static StageMachine<ProcedureId, ProcedureArgs> CreateMachine(ConfigService config, LuaComponent lua, EventCenter events,
             UIService uiService, UiLuaRegistry uiRegistry, ContentLuaRegistry contentRegistry,
             StrategyLuaRegistry strategyRegistry, RedDotRegistry redDotRegistry,
             ILogicScheduler logicScheduler, IUIScheduler uiScheduler, GameTimelineRunner timelineRunner,
@@ -122,20 +124,20 @@ namespace LiteGame
             var scenes = new SceneService();
             var filler = new RegistryFiller(config, lua, uiRegistry, contentRegistry, strategyRegistry);
             var refill = new LuaRegistryRefillService(lua, uiService, config, uiRegistry, contentRegistry, strategyRegistry);
-            return new Fsm<ProcedureOwner>("Game", new ProcedureOwner(),
-                new ProcedureLaunch(s_container, config, scenes, uiRegistry, contentRegistry, strategyRegistry, uiService, redDotRegistry, logicScheduler, uiScheduler, timelineRunner, entityService, audioService, refill),
-                new ProcedurePreload(config, lua, filler, events),
-                new ProcedureMain(),
-                new ProcedureError());
+            return new StageMachine<ProcedureId, ProcedureArgs>("Procedure",
+                (ProcedureId.Launch, new ProcedureLaunch(s_container, config, scenes, uiRegistry, contentRegistry, strategyRegistry, uiService, redDotRegistry, logicScheduler, uiScheduler, timelineRunner, entityService, audioService, refill)),
+                (ProcedureId.Preload, new ProcedurePreload(config, lua, filler, events)),
+                (ProcedureId.Main, new ProcedureMain()),
+                (ProcedureId.Error, new ProcedureError()));
         }
 
-        /// <summary>FSM 启动放 Start：晚于全部组件 Awake 的 RegisterInstance——流程顺序契约
+        /// <summary>状态机启动放 Start：晚于全部组件 Awake 的 RegisterInstance——流程顺序契约
         /// （ProcedureLaunch 会 Seal 封注册面，密封后组件注册即违例）。</summary>
         private void Start()
         {
             if (!_active) return;                            // 重复引导件：Awake 已销毁，不参与
             TakeContainer();                                 // 断言已装配
-            s_fsm.Start<ProcedureLaunch>();
+            s_fsm.Start(ProcedureId.Launch);
         }
 
         private void Update()

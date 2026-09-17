@@ -7,11 +7,11 @@ namespace LiteGame
 {
     /// <summary>
     /// 启动流程：**唯一受信装配点**（设计方案 §3.3）。依赖在 GameEntry.Awake 装配点构造注入存为本类字段——
-    /// 流程依赖不从 Owner 取（那是局部服务定位器，与"容器不静态暴露"同罪）。
+    /// 流程依赖不从 payload 取（那是局部服务定位器，与"容器不静态暴露"同罪）。
     /// 职责：注册业务服务 → Seal 封注册面 → 移交 Preload。**Start 由 GameEntry.Start() 触发**
     /// （晚于全部组件 Awake 的 RegisterInstance——流程顺序契约，避免密封后注册违例）。
     /// </summary>
-    public sealed class ProcedureLaunch : ProcedureBase<ProcedureOwner>
+    public sealed class ProcedureLaunch : ProcedureStageBase<ProcedureId, ProcedureArgs>
     {
         private readonly ServiceContainer _container;
         private readonly ConfigService _config;
@@ -50,10 +50,10 @@ namespace LiteGame
             _refill = refillService ?? throw new ArgumentNullException(nameof(refillService));
         }
 
-        protected override void RunAsync(Fsm<ProcedureOwner> fsm, CancellationToken ct)
-            => RunAsyncCore(fsm, ct).Forget();          // 一行转发，仅此而已——禁止 async void（M0 指导 §6）
+        protected override void RunAsync(IStageHost<ProcedureId, ProcedureArgs> m, in ProcedureArgs req, CancellationToken ct)
+            => RunAsyncCore(m, ct).Forget();          // 一行转发，仅此而已——禁止 async void（M0 指导 §6）
 
-        private async UniTask RunAsyncCore(Fsm<ProcedureOwner> fsm, CancellationToken ct)
+        private async UniTask RunAsyncCore(IStageHost<ProcedureId, ProcedureArgs> m, CancellationToken ct)
         {
             try
             {
@@ -78,13 +78,13 @@ namespace LiteGame
                 Bridge.BindRegistries(_uiRegistry, _contentRegistry);   // ui/content 骨架门面查询底座（§2.5）
                 Bridge.BindUIService(_ui);               // 真实门面 Show/Close/IsOpen 后端（M4 §2.3）
 
-                fsm.ChangeState<ProcedurePreload>();
+                m.Request(ProcedureId.Preload);
             }
             catch (OperationCanceledException) { /* 正常取消，静默 */ }
             catch (Exception ex)
             {
-                Fail(fsm, ex, nameof(RunAsyncCore));
-                fsm.ChangeState<ProcedureError>();
+                Fail(m, ex, nameof(RunAsyncCore));
+                m.Request(ProcedureId.Error, new ProcedureArgs(ex));
             }
         }
     }

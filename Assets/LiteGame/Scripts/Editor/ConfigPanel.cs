@@ -120,7 +120,7 @@ namespace LiteGame.Editor
         {
             string fsmState = "—";
             var fsm = GetFsm();
-            if (fsm != null) fsmState = fsm.CurrentState?.GetType().Name ?? "(未启动)";
+            if (fsm != null) fsmState = fsm.Started ? fsm.Current.ToString() : "(未启动)";
 
             var config = GetConfigService();
             string configText = config == null ? "未装配" : config.Loaded ? "已加载" : "未加载";
@@ -424,7 +424,8 @@ namespace LiteGame.Editor
 
         private static IConfigService GetConfigService() => ResolveFromContainer<IConfigService>();
 
-        private static Fsm<ProcedureOwner> GetFsm() => ResolveFromContainer<Fsm<ProcedureOwner>>();
+        private static StageMachine<ProcedureId, ProcedureArgs> GetFsm()
+            => ResolveFromContainer<StageMachine<ProcedureId, ProcedureArgs>>();
 
         private static T ResolveFromContainer<T>() where T : class
         {

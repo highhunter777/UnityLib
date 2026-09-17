@@ -35,17 +35,17 @@ namespace LiteGame
             Check("Stats 非空", _stats != null && _stats.Count >= 1);
 
             // ---- 注册即发现：关键件在驱动列表里（类型匹配，不匹配 StatsName 字符串）----
-            bool hasEvent = false, hasWorld = false, hasUi = false, hasFsm = false;
+            bool hasEvent = false, hasWorld = false, hasUi = false, hasMachine = false;
             foreach (var t in _tickables)
             {
                 if (t is IEventCenter) hasEvent = true;
                 if (t is IWorldClock) hasWorld = true;
                 if (t is IUIClock) hasUi = true;
-                if (t is Fsm<ProcedureOwner>) hasFsm = true;
+                if (t is StageMachine<ProcedureId, ProcedureArgs>) hasMachine = true;
             }
             Check("事件中心已注册", hasEvent);
             Check("双时钟已注册", hasWorld && hasUi);
-            Check("FSM 已注册", hasFsm);
+            Check("流程状态机已注册", hasMachine);
 
             // ---- 事件中心收发冒烟（从 Tickables 取回具体实现）----
             foreach (var t in _tickables)
