@@ -308,6 +308,39 @@ namespace LiteFramework.Tests
             Assert.False(f.Machine.Raise(3));                         // 普通 Stage 未实现 IEventSink
         }
 
+        // ---- Reset（深→浅收尾 + 清历史；2026-09-17 补）----
+
+        [Fact]
+        public void HSM_Reset_深到浅OnLeave_清路径与历史_可再次Start()
+        {
+            var f = new Fixture(HistoryMode.Shallow, HistoryMode.Deep);
+            f.Machine.Start(Id.Main);                              // Main/Lobby
+            f.Machine.Request(Id.Result); f.Machine.Advance();     // Main/Battle/Result
+            Assert.Equal(3, f.Machine.ActivePath.Count);
+
+            f.Log.Clear();
+            f.Machine.Reset();
+            Assert.Equal(new[] { "-Result", "-Battle", "-Main" }, f.Log);   // 深 → 浅（与 enter 的浅→深对称）
+            Assert.Equal(0, f.Machine.ActivePath.Count);
+            Assert.False(f.Machine.Started);
+            Assert.False(f.Machine.HasPending);
+
+            // 历史已清 → 重新 Start 后回到 Main 的 InitialChild（Lobby），而不是上次的 Battle/Result
+            f.Machine.Start(Id.Main);
+            Assert.Equal(new[] { Id.Main, Id.Lobby }, f.Machine.ActivePath);
+        }
+
+        [Fact]
+        public void HSM_Reset后_Request抛_未启动语义恢复()
+        {
+            var f = new Fixture();
+            f.Machine.Start(Id.Main);
+            f.Machine.Reset();
+            Assert.Throws<InvalidOperationException>(() => f.Machine.Request(Id.Match));
+            f.Machine.Tick(0.016f);                                // 未启动：Tick 静默
+            Assert.Equal(0, f.Main.Update);
+        }
+
         // ---- H10：7 条传统语义 ----
 
         [Fact]

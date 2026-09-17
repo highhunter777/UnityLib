@@ -1,4 +1,5 @@
 using System;
+using LiteNet;
 using LiteNet.Protocol;
 using LiteNet.Transport;
 
@@ -16,6 +17,9 @@ namespace RoomServer
                 + $"protobuf {typeof(Google.Protobuf.WellKnownTypes.Duration).Assembly.GetName().Version}");
             Console.WriteLine($"[RoomServer] 协议自检：{PacketType.Input} / {PacketType.StateSnapshot}，"
                 + $"传输端口 {typeof(IRoomTransport).Name} 可用");
+            // 版本自检（M10 前置）：打印本构建的联机版本 hash——客户端 Join 时带 build_hash，与此值不等即拒绝进房；
+            // 改了 Sim/协议后由 scripts/gen-build-hash.py 再生，L1（BuildHashTests）会拦住"忘重跑"。
+            Console.WriteLine($"[RoomServer] 联机版本 hash = {BuildHash.Value}（Join 握手校验锚点）");
             return 0;
         }
     }

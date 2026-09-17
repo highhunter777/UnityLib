@@ -149,6 +149,59 @@ namespace LiteFramework.Tests
             Assert.Throws<InvalidOperationException>(() => m.Request(Id.Unregistered));
         }
 
+        // ---- Reset（停止并回到未启动态；2026-09-17 补）----
+
+        [Fact]
+        public void StageMachine_Reset_OnLeave对称收尾_可再次Start()
+        {
+            var a = new StageA(); var b = new StageB(); var c = new StageC();
+            var m = Make(a, b, c);
+            m.Start(Id.A);
+            m.Tick(0.5f);
+            m.Request(Id.B);
+            Assert.True(m.HasPending);
+
+            m.Reset();
+            Assert.False(m.Started);                           // 回未启动态
+            Assert.False(m.HasPending);                        // 挂起被清（未应用的请求丢弃）
+            Assert.Equal(1, a.Leave);                          // 对称收尾：Start→OnEnter，Reset→OnLeave
+            Assert.Equal(0f, m.StageTime, 5);
+            Assert.Equal(0, m.StageFrames);
+            Assert.Equal(0, m.TransitionCount);                // 计数归零（回到"刚构造"）
+
+            m.Start(Id.B);                                     // 可再次 Start（重开一局/切换场景）
+            Assert.True(m.Started);
+            Assert.Equal(Id.B, m.Current);
+            Assert.Equal(1, b.Enter);
+        }
+
+        [Fact]
+        public void StageMachine_Reset后_Request抛_未启动语义恢复()
+        {
+            var a = new StageA(); var b = new StageB(); var c = new StageC();
+            var m = Make(a, b, c);
+            m.Start(Id.A);
+            m.Reset();
+            Assert.Throws<InvalidOperationException>(() => m.Request(Id.B));
+            m.Tick(0.016f);                                    // 未启动：Tick 静默
+            Assert.Equal(0, a.Update);
+        }
+
+        [Fact]
+        public void StageMachine_Reset时OnLeave抛_机器仍保证复位()
+        {
+            var a = new StageA(); var b = new StageB(); var c = new StageC();
+            var m = Make(a, b, c);
+            m.Start(Id.A);
+            a.OnLeaveHook = () => throw new InvalidOperationException("boom");
+
+            Assert.Throws<InvalidOperationException>(() => m.Reset());   // 异常照旧向外传播（内核不捕获）
+            Assert.False(m.Started);                           // 但机器已复位（finally 保证）
+            a.OnLeaveHook = null;
+            m.Start(Id.B);                                     // 可重新开始
+            Assert.Equal(Id.B, m.Current);
+        }
+
         // ---- 通用化新增 ----
 
         [Fact]

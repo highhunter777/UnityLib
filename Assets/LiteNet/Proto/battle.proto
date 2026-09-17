@@ -11,8 +11,9 @@ message InputFrame {
   int64 entity_id = 1;   // 48 位 version + 16 位 slot
   float move_x = 2;
   float move_z = 3;
-  float yaw = 4;
-  uint32 buttons = 5;
+  float aim_x = 4;       // 瞄准方向 X（XZ；非零，长度 ≤1 由采集侧保证；朝向不再上线）
+  float aim_z = 5;
+  uint32 buttons = 6;    // 字段号随 2026-09-17 瞄准改造调整（协议未发布，允许重编号）
 }
 
 // ===== C→S 逐帧输入（Unreliable + ≤4 帧冗余）=====

@@ -42,6 +42,8 @@ namespace LiteGame
         private SimInputFrame[] _inputs;
         private long _playerId;
         private float _lastYaw;
+        private float _aimX = 1f;      // 瞄准方向（长度 ≤1 契约；默认朝 +X）
+        private float _aimZ;
         private bool _paused;
         private int _targetsLeft;
         private Camera _cam;
@@ -112,14 +114,24 @@ namespace LiteGame
                 {
                     var p = ray.GetPoint(d);
                     ref EntitySlot e = ref _state.Entities[slot];
-                    _lastYaw = Mathf.Atan2(p.z - e.Pos.Z, p.x - e.Pos.X); // XZ 平面弧度（§3.4）
+                    float ax = p.x - e.Pos.X;
+                    float az = p.z - e.Pos.Z;
+                    float aimMag2 = ax * ax + az * az;
+                    if (aimMag2 > 0.000001f)
+                    {
+                        float inv = 1f / Mathf.Sqrt(aimMag2);        // 长度 ≤1 契约（采集侧归一化）
+                        _aimX = ax * inv;
+                        _aimZ = az * inv;
+                    }
+                    _lastYaw = Mathf.Atan2(_aimZ, _aimX);            // 仅供 Gizmos 显示（朝向由 Sim 派生）
                 }
             }
 
             _inputs[0].EntityId = _playerId;
             _inputs[0].MoveX = mx;
             _inputs[0].MoveZ = mz;
-            _inputs[0].Yaw = _lastYaw;
+            _inputs[0].AimX = _aimX;
+            _inputs[0].AimZ = _aimZ;
             _inputs[0].Buttons = Input.GetMouseButton(0) ? SimInputFrame.ButtonFire : 0u;
         }
 

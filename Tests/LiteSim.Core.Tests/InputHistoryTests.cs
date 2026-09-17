@@ -7,9 +7,10 @@ namespace LiteSim.Tests
     /// <summary>输入历史机制用例（《M9 实施指导》§2.4：记录/覆盖语义/窗口判定/位级判等）。</summary>
     public class InputHistoryTests
     {
-        private static SimInputFrame Input(long id, float mx, float mz, float yaw, uint buttons)
+        private static SimInputFrame Input(long id, float mx, float mz, float aimX, uint buttons)
         {
-            return new SimInputFrame { EntityId = id, MoveX = mx, MoveZ = mz, Yaw = yaw, Buttons = buttons };
+            // AimZ 固定非零（瞄准契约要求非零向量；本用例只验证身份/差异语义）
+            return new SimInputFrame { EntityId = id, MoveX = mx, MoveZ = mz, AimX = aimX, AimZ = 0.5f, Buttons = buttons };
         }
 
         [Fact]

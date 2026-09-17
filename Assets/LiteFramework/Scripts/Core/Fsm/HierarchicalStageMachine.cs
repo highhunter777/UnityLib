@@ -22,7 +22,7 @@ namespace LiteFramework
     /// 宿主与快照：`ITickable` + `IModuleStats`。
     /// </summary>
     public sealed class HierarchicalStageMachine<TId, TReq> : ITickable, IModuleStats, IStageHost<TId, TReq>
-        where TId : struct, Enum
+        where TId : struct
     {
         private static readonly IEqualityComparer<TId> Cmp = EqualityComparer<TId>.Default;
 
@@ -39,6 +39,7 @@ namespace LiteFramework
         private TReq _pendingReq;
         private bool _inLeave;
         private float _stageTime;
+        private int _stageFrames;
         private long _transitionCount;
 
         public HierarchicalStageMachine(string name,
@@ -122,6 +123,9 @@ namespace LiteFramework
         public TId PendingId => _pendingId;
         public float StageTime => _stageTime;
 
+        /// <summary>最深活动态驻留的整数帧数（每次 `Tick` +1，事务后归零）。</summary>
+        public int StageFrames => _stageFrames;
+
         /// <summary>迁移**事务**计数（一次跨层请求算一次，不是层数）。</summary>
         public long TransitionCount => _transitionCount;
 
@@ -143,13 +147,14 @@ namespace LiteFramework
             for (int i = 0; i < _active.Count; i++)
                 _stages[_active[i]].OnEnter(this, default);
             _stageTime = 0f;
+            _stageFrames = 0;
         }
 
         /// <summary>
         /// 发起迁移请求（只入队，last-wins）。目标可以是任意层级的阶段 id——**路径由树反查**，调用方不给路径。
         /// 未 Start / 未注册 / 重入（= 当前最深）/ `OnLeave` 窗口内 → 当场抛。
         /// </summary>
-        public void Request(TId target, in TReq req)
+        public bool Request(TId target, in TReq req)
         {
             if (_active.Count == 0) throw new InvalidOperationException($"{_name}:Start 之前禁止 Request");
             if (_inLeave) throw new InvalidOperationException($"{_name}:OnLeave 期间禁止 Request（离场中改道自相矛盾）");
@@ -160,9 +165,10 @@ namespace LiteFramework
             _pendingId = target;
             _pendingReq = req;
             _hasPending = true;
+            return true;                       // 层级机不做优先级抢占（见 ARPG 扩展施工图 §3 判据）
         }
 
-        public void Request(TId target) => Request(target, default);
+        public bool Request(TId target) => Request(target, default);
 
         /// <summary>应用挂起请求：LCA 之下先退（深→浅）后进（浅→深）。</summary>
         public void Advance()
@@ -192,9 +198,40 @@ namespace LiteFramework
         {
             if (_active.Count == 0) return;
             _stageTime += realDelta;
+            _stageFrames++;
             for (int i = 0; i < _active.Count; i++)
                 _stages[_active[i]].OnUpdate(this, realDelta);
             if (_hasPending) Advance();
+        }
+
+        /// <summary>
+        /// 停止并回到未启动态（可再次 `Start`）：活动路径**深→浅**逐层 `OnLeave`（与 enter 的浅→深对称），
+        /// 然后清路径/历史/挂起/计数/中断标记。钩子抛异常时机器仍保证已复位（异常继续传播）。
+        /// </summary>
+        public void Reset()
+        {
+            _hasPending = false;
+            _pendingReq = default;
+
+            if (_active.Count > 0)
+            {
+                var leaving = new List<TId>(_active);            // 先拷贝：OnLeave 期间 ActivePath 视为已清空
+                _active.Clear();
+                _inLeave = true;
+                try
+                {
+                    for (int i = leaving.Count - 1; i >= 0; i--)  // 深 → 浅
+                        _stages[leaving[i]].OnLeave(this);
+                }
+                finally { _inLeave = false; }
+            }
+
+            _history.Clear();
+            _stageTime = 0f;
+            _stageFrames = 0;
+            _transitionCount = 0;
+            Interrupted = false;
+            InterruptedTarget = default;
         }
 
         /// <summary>事件冒泡：从最深活动态向根，首个实现的 <see cref="IEventSink{TEvt}"/> 返回 true 即停。</summary>
@@ -249,6 +286,7 @@ namespace LiteFramework
 
             _transitionCount++;
             _stageTime = 0f;
+            _stageFrames = 0;
         }
 
         /// <summary>目标路径 = 根→目标的显式链 + 目标之下的展开（历史/初始）。</summary>
@@ -348,6 +386,7 @@ namespace LiteFramework
             into["复合态数"] = _composite.Count.ToString();
             into["历史项"] = _history.Count.ToString();
             into["阶段时长"] = _stageTime.ToString("0.0");
+            into["阶段帧数"] = _stageFrames.ToString();
             into["累计事务"] = _transitionCount.ToString();
             into["中断中"] = Interrupted.ToString();
         }

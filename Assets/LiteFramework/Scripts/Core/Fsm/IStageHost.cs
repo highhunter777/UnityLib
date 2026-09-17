@@ -12,7 +12,7 @@ namespace LiteFramework
     ///   `if (m is HierarchicalStageMachine&lt;TId,TReq&gt; hsm) { ... }` 取用（低频、显式）；
     /// - 这样平面机不必实现一堆用不到的成员（宁窄勿宽）。
     /// </summary>
-    public interface IStageHost<TId, TReq> where TId : struct, Enum
+    public interface IStageHost<TId, TReq> where TId : struct
     {
         /// <summary>是否已 Start（平面机：`_current != null`；层级机：活动路径非空）。</summary>
         bool Started { get; }
@@ -20,13 +20,17 @@ namespace LiteFramework
         /// <summary>当前阶段（平面机：当前态；层级机：**最深活动态**）。</summary>
         TId Current { get; }
 
-        /// <summary>当前阶段已持续时长（迁移后归零）。</summary>
+        /// <summary>当前阶段已持续时长（秒；迁移后归零）。</summary>
         float StageTime { get; }
 
-        /// <summary>发起迁移请求（只入队，last-wins；平面机 = 一次迁移，层级机 = 一次迁移事务）。</summary>
-        void Request(TId nextId, in TReq req);
+        /// <summary>当前阶段驻留的**整数帧数**（每次 `Tick` +1，迁移后归零）——表驱动状态的帧窗口判据（如前 N 帧可取消）。</summary>
+        int StageFrames { get; }
+
+        /// <summary>发起迁移请求（只入队，last-wins；平面机 = 一次迁移，层级机 = 一次迁移事务）。
+        /// 返回 **false** = 被优先级/中断规则挡下（不改变挂起）；层级机恒为 true。</summary>
+        bool Request(TId nextId, in TReq req);
 
         /// <summary>无 payload 的迁移请求。</summary>
-        void Request(TId nextId);
+        bool Request(TId nextId);
     }
 }

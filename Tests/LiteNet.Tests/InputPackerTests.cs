@@ -10,7 +10,7 @@ namespace LiteNet.Tests
     {
         private static SimInputFrame Make(long id, float x)
         {
-            return new SimInputFrame { EntityId = id, MoveX = x, MoveZ = -x, Yaw = x * 3f, Buttons = 1u };
+            return new SimInputFrame { EntityId = id, MoveX = x, MoveZ = -x, AimX = x, AimZ = x * 3f, Buttons = 1u };
         }
 
         [Fact]
@@ -54,7 +54,8 @@ namespace LiteNet.Tests
                 EntityId = 0x0001_0002_0003_0004L,
                 MoveX = -3.1415927f,
                 MoveZ = 1e-30f,
-                Yaw = 6.2831853f,
+                AimX = 6.2831853f,
+                AimZ = -6.2831853f,
                 Buttons = 0xDEADBEEFu,
             };
 
@@ -64,7 +65,8 @@ namespace LiteNet.Tests
             Assert.Equal(src.EntityId, back.EntityId);
             Assert.Equal(BitConverter.SingleToInt32Bits(src.MoveX), BitConverter.SingleToInt32Bits(back.MoveX));
             Assert.Equal(BitConverter.SingleToInt32Bits(src.MoveZ), BitConverter.SingleToInt32Bits(back.MoveZ));
-            Assert.Equal(BitConverter.SingleToInt32Bits(src.Yaw), BitConverter.SingleToInt32Bits(back.Yaw));
+            Assert.Equal(BitConverter.SingleToInt32Bits(src.AimX), BitConverter.SingleToInt32Bits(back.AimX));
+            Assert.Equal(BitConverter.SingleToInt32Bits(src.AimZ), BitConverter.SingleToInt32Bits(back.AimZ));
             Assert.Equal(src.Buttons, back.Buttons);
         }
     }

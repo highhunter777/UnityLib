@@ -36,7 +36,8 @@ namespace LiteSim.Tests
                     row[i].EntityId = players[i];
                     row[i].MoveX = rng.NextFloat01() * 2f - 1f;
                     row[i].MoveZ = rng.NextFloat01() * 2f - 1f;
-                    row[i].Yaw = rng.NextFloat01() * SimTrig.TwoPi;
+                    row[i].AimX = 1f - 2f * rng.NextFloat01();
+                    row[i].AimZ = 1f - 2f * rng.NextFloat01();
                     row[i].Buttons = (rng.NextUInt32() & 3u) == 0u ? SimInputFrame.ButtonFire : 0u;
                 }
                 script[f] = row;
@@ -53,8 +54,10 @@ namespace LiteSim.Tests
             {
                 script[f] = new[]
                 {
-                    new SimInputFrame { EntityId = players[0], MoveX = 0f, MoveZ = 0f, Yaw = 0f, Buttons = 0u },
-                    new SimInputFrame { EntityId = players[1], MoveX = 0f, MoveZ = 0f, Yaw = 0f, Buttons = 0u },
+                    // 零输入（含 Aim 零——本脚本不开火，与冷启动模板 IdentityTemplate 的零值逐位一致，
+                    // 这正是"预测正确"用例的前提；2026-09-17 Aim 改造时曾把这里错设成 (1,0) 导致每帧判预测错）
+                    new SimInputFrame { EntityId = players[0], MoveX = 0f, MoveZ = 0f, AimX = 0f, AimZ = 0f, Buttons = 0u },
+                    new SimInputFrame { EntityId = players[1], MoveX = 0f, MoveZ = 0f, AimX = 0f, AimZ = 0f, Buttons = 0u },
                 };
             }
             return script;

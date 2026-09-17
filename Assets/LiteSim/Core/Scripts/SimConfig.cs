@@ -61,5 +61,16 @@ namespace LiteSim
 
         /// <summary>基础伤害（ShootingSystem 经 RngState 浮动 ±1）。</summary>
         public const int BaseDamage = 25;
+
+        // ---- M10 广播 / AOI 旋钮（《M10实施指导》决策 7/13；**初始值**，M10 实施时按实测校准）----
+
+        /// <summary>快照广播频率（Hz）：权威循环每 `TickRate / SnapshotHz` 个逻辑帧广播一次（30 → 每 2 帧）。</summary>
+        public const int SnapshotHz = 30;
+
+        /// <summary>AOI 网格边长（米）：**只影响广播裁剪，不影响判定与回滚重放**（决策 13 / §4.5-7）。</summary>
+        public const float AoiCellSize = 10f;
+
+        /// <summary>AOI 广播半径（米）：同上；<c>0</c> = 关闭 AOI（全图广播，等价性验收用）。</summary>
+        public const float AoiRadius = 30f;
     }
 }

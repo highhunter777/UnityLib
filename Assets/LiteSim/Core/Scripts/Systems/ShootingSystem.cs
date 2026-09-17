@@ -17,9 +17,10 @@ namespace LiteSim
 
                 ref EntitySlot shooter = ref s.Entities[shooterSlot];
 
-                // 射线方向由朝向决定（SimTrig 查表——R1 纪律）
-                float dx = SimTrig.Cos(shooter.Yaw);
-                float dz = SimTrig.Sin(shooter.Yaw);
+                // 射线方向 = 输入瞄准向量本身（2026-09-17：Aim 即事实，省一次三角函数往返；
+                // 零向量不会命中任何目标——采集侧契约要求非零）
+                float dx = inputs[i].AimX;
+                float dz = inputs[i].AimZ;
                 float originY = shooter.Pos.Y + SimConfig.HitscanHeight * 0.5f;
 
                 int hitSlot = -1;

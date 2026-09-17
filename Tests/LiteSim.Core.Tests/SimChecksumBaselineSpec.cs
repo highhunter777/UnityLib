@@ -107,7 +107,8 @@ namespace LiteSim.Tests
                 inputs[i].EntityId = players[i];
                 inputs[i].MoveX = rng.NextFloat01() * 2f - 1f;
                 inputs[i].MoveZ = rng.NextFloat01() * 2f - 1f;
-                inputs[i].Yaw = rng.NextFloat01() * SimTrig.TwoPi;
+                inputs[i].AimX = 1f - 2f * rng.NextFloat01();
+                inputs[i].AimZ = 1f - 2f * rng.NextFloat01();
                 inputs[i].Buttons = (rng.NextUInt32() & 3u) == 0u ? SimInputFrame.ButtonFire : 0u;
             }
         }

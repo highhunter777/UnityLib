@@ -24,32 +24,32 @@ namespace LiteNet.Proto {
     static BattleReflection() {
       byte[] descriptorData = global::System.Convert.FromBase64String(
           string.Concat(
-            "CgxiYXR0bGUucHJvdG8SCmxpdGViYXR0bGUiXQoKSW5wdXRGcmFtZRIRCgll",
+            "CgxiYXR0bGUucHJvdG8SCmxpdGViYXR0bGUibgoKSW5wdXRGcmFtZRIRCgll",
             "bnRpdHlfaWQYASABKAMSDgoGbW92ZV94GAIgASgCEg4KBm1vdmVfehgDIAEo",
-            "AhILCgN5YXcYBCABKAISDwoHYnV0dG9ucxgFIAEoDSJvCgxJbnB1dE1lc3Nh",
-            "Z2USDQoFZnJhbWUYASABKAUSJgoGZnJhbWVzGAIgAygLMhYubGl0ZWJhdHRs",
-            "ZS5JbnB1dEZyYW1lEhQKDGFja19zbmFwc2hvdBgDIAEoBRISCgp2aWV3X2Zy",
-            "YW1lGAQgASgFIqcBCglTbG90RGVsdGESDAoEc2xvdBgBIAEoBRIKCgJpZBgC",
-            "IAEoAxINCgVwb3NfeBgDIAEoAhINCgVwb3NfeRgEIAEoAhINCgVwb3NfehgF",
-            "IAEoAhINCgV2ZWxfeBgGIAEoAhINCgV2ZWxfeRgHIAEoAhINCgV2ZWxfehgI",
-            "IAEoAhILCgN5YXcYCSABKAISCgoCaHAYCiABKAUSDQoFZmxhZ3MYCyABKA0i",
-            "egoNU3RhdGVTbmFwc2hvdBINCgVmcmFtZRgBIAEoBRIPCgdpc19mdWxsGAIg",
-            "ASgIEiQKBXNsb3RzGAMgAygLMhUubGl0ZWJhdHRsZS5TbG90RGVsdGESEAoI",
-            "Y2hlY2tzdW0YBCABKA0SEQoJYWNrX2lucHV0GAUgASgFIkEKC0pvaW5SZXF1",
-            "ZXN0Eg8KB3Jvb21faWQYASABKAkSDQoFdG9rZW4YAiABKAkSEgoKYnVpbGRf",
-            "aGFzaBgDIAEoCSItCgdKb2luQWNrEhEKCXBsYXllcl9pZBgBIAEoBRIPCgdt",
-            "ZW1iZXJzGAIgAygFIi4KCVN0YXJ0R2FtZRIMCgRzZWVkGAEgASgDEhMKC2Nv",
-            "bmZpZ19oYXNoGAIgASgNIgcKBUxlYXZlIiAKCUhlYXJ0YmVhdBITCgtjbGll",
-            "bnRfdGltZRgBIAEoAyIqChBSZWNvbm5lY3RSZXF1ZXN0EhYKDm9uZV90aW1l",
-            "X3Rva2VuGAEgASgJIncKEVJlY29ubmVjdFJlc3BvbnNlEgoKAm9rGAEgASgI",
-            "EisKCHNuYXBzaG90GAIgASgLMhkubGl0ZWJhdHRsZS5TdGF0ZVNuYXBzaG90",
-            "EikKB2hpc3RvcnkYAyADKAsyGC5saXRlYmF0dGxlLklucHV0TWVzc2FnZSIf",
-            "Cg5NaXNtYXRjaFJlcG9ydBINCgVmcmFtZRgBIAEoBUIQqgINTGl0ZU5ldC5Q",
-            "cm90b2IGcHJvdG8z"));
+            "AhINCgVhaW1feBgEIAEoAhINCgVhaW1fehgFIAEoAhIPCgdidXR0b25zGAYg",
+            "ASgNIm8KDElucHV0TWVzc2FnZRINCgVmcmFtZRgBIAEoBRImCgZmcmFtZXMY",
+            "AiADKAsyFi5saXRlYmF0dGxlLklucHV0RnJhbWUSFAoMYWNrX3NuYXBzaG90",
+            "GAMgASgFEhIKCnZpZXdfZnJhbWUYBCABKAUipwEKCVNsb3REZWx0YRIMCgRz",
+            "bG90GAEgASgFEgoKAmlkGAIgASgDEg0KBXBvc194GAMgASgCEg0KBXBvc195",
+            "GAQgASgCEg0KBXBvc196GAUgASgCEg0KBXZlbF94GAYgASgCEg0KBXZlbF95",
+            "GAcgASgCEg0KBXZlbF96GAggASgCEgsKA3lhdxgJIAEoAhIKCgJocBgKIAEo",
+            "BRINCgVmbGFncxgLIAEoDSJ6Cg1TdGF0ZVNuYXBzaG90Eg0KBWZyYW1lGAEg",
+            "ASgFEg8KB2lzX2Z1bGwYAiABKAgSJAoFc2xvdHMYAyADKAsyFS5saXRlYmF0",
+            "dGxlLlNsb3REZWx0YRIQCghjaGVja3N1bRgEIAEoDRIRCglhY2tfaW5wdXQY",
+            "BSABKAUiQQoLSm9pblJlcXVlc3QSDwoHcm9vbV9pZBgBIAEoCRINCgV0b2tl",
+            "bhgCIAEoCRISCgpidWlsZF9oYXNoGAMgASgJIi0KB0pvaW5BY2sSEQoJcGxh",
+            "eWVyX2lkGAEgASgFEg8KB21lbWJlcnMYAiADKAUiLgoJU3RhcnRHYW1lEgwK",
+            "BHNlZWQYASABKAMSEwoLY29uZmlnX2hhc2gYAiABKA0iBwoFTGVhdmUiIAoJ",
+            "SGVhcnRiZWF0EhMKC2NsaWVudF90aW1lGAEgASgDIioKEFJlY29ubmVjdFJl",
+            "cXVlc3QSFgoOb25lX3RpbWVfdG9rZW4YASABKAkidwoRUmVjb25uZWN0UmVz",
+            "cG9uc2USCgoCb2sYASABKAgSKwoIc25hcHNob3QYAiABKAsyGS5saXRlYmF0",
+            "dGxlLlN0YXRlU25hcHNob3QSKQoHaGlzdG9yeRgDIAMoCzIYLmxpdGViYXR0",
+            "bGUuSW5wdXRNZXNzYWdlIh8KDk1pc21hdGNoUmVwb3J0Eg0KBWZyYW1lGAEg",
+            "ASgFQhCqAg1MaXRlTmV0LlByb3RvYgZwcm90bzM="));
       descriptor = pbr::FileDescriptor.FromGeneratedCode(descriptorData,
           new pbr::FileDescriptor[] { },
           new pbr::GeneratedClrTypeInfo(null, null, new pbr::GeneratedClrTypeInfo[] {
-            new pbr::GeneratedClrTypeInfo(typeof(global::LiteNet.Proto.InputFrame), global::LiteNet.Proto.InputFrame.Parser, new[]{ "EntityId", "MoveX", "MoveZ", "Yaw", "Buttons" }, null, null, null, null),
+            new pbr::GeneratedClrTypeInfo(typeof(global::LiteNet.Proto.InputFrame), global::LiteNet.Proto.InputFrame.Parser, new[]{ "EntityId", "MoveX", "MoveZ", "AimX", "AimZ", "Buttons" }, null, null, null, null),
             new pbr::GeneratedClrTypeInfo(typeof(global::LiteNet.Proto.InputMessage), global::LiteNet.Proto.InputMessage.Parser, new[]{ "Frame", "Frames", "AckSnapshot", "ViewFrame" }, null, null, null, null),
             new pbr::GeneratedClrTypeInfo(typeof(global::LiteNet.Proto.SlotDelta), global::LiteNet.Proto.SlotDelta.Parser, new[]{ "Slot", "Id", "PosX", "PosY", "PosZ", "VelX", "VelY", "VelZ", "Yaw", "Hp", "Flags" }, null, null, null, null),
             new pbr::GeneratedClrTypeInfo(typeof(global::LiteNet.Proto.StateSnapshot), global::LiteNet.Proto.StateSnapshot.Parser, new[]{ "Frame", "IsFull", "Slots", "Checksum", "AckInput" }, null, null, null, null),
@@ -105,7 +105,8 @@ namespace LiteNet.Proto {
       entityId_ = other.entityId_;
       moveX_ = other.moveX_;
       moveZ_ = other.moveZ_;
-      yaw_ = other.yaw_;
+      aimX_ = other.aimX_;
+      aimZ_ = other.aimZ_;
       buttons_ = other.buttons_;
       _unknownFields = pb::UnknownFieldSet.Clone(other._unknownFields);
     }
@@ -155,21 +156,39 @@ namespace LiteNet.Proto {
       }
     }
 
-    /// <summary>Field number for the "yaw" field.</summary>
-    public const int YawFieldNumber = 4;
-    private float yaw_;
+    /// <summary>Field number for the "aim_x" field.</summary>
+    public const int AimXFieldNumber = 4;
+    private float aimX_;
+    /// <summary>
+    /// 瞄准方向 X（XZ；非零，长度 ≤1 由采集侧保证；朝向不再上线）
+    /// </summary>
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public float Yaw {
-      get { return yaw_; }
+    public float AimX {
+      get { return aimX_; }
       set {
-        yaw_ = value;
+        aimX_ = value;
+      }
+    }
+
+    /// <summary>Field number for the "aim_z" field.</summary>
+    public const int AimZFieldNumber = 5;
+    private float aimZ_;
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public float AimZ {
+      get { return aimZ_; }
+      set {
+        aimZ_ = value;
       }
     }
 
     /// <summary>Field number for the "buttons" field.</summary>
-    public const int ButtonsFieldNumber = 5;
+    public const int ButtonsFieldNumber = 6;
     private uint buttons_;
+    /// <summary>
+    /// 字段号随 2026-09-17 瞄准改造调整（协议未发布，允许重编号）
+    /// </summary>
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
     public uint Buttons {
@@ -197,7 +216,8 @@ namespace LiteNet.Proto {
       if (EntityId != other.EntityId) return false;
       if (!pbc::ProtobufEqualityComparers.BitwiseSingleEqualityComparer.Equals(MoveX, other.MoveX)) return false;
       if (!pbc::ProtobufEqualityComparers.BitwiseSingleEqualityComparer.Equals(MoveZ, other.MoveZ)) return false;
-      if (!pbc::ProtobufEqualityComparers.BitwiseSingleEqualityComparer.Equals(Yaw, other.Yaw)) return false;
+      if (!pbc::ProtobufEqualityComparers.BitwiseSingleEqualityComparer.Equals(AimX, other.AimX)) return false;
+      if (!pbc::ProtobufEqualityComparers.BitwiseSingleEqualityComparer.Equals(AimZ, other.AimZ)) return false;
       if (Buttons != other.Buttons) return false;
       return Equals(_unknownFields, other._unknownFields);
     }
@@ -209,7 +229,8 @@ namespace LiteNet.Proto {
       if (EntityId != 0L) hash ^= EntityId.GetHashCode();
       if (MoveX != 0F) hash ^= pbc::ProtobufEqualityComparers.BitwiseSingleEqualityComparer.GetHashCode(MoveX);
       if (MoveZ != 0F) hash ^= pbc::ProtobufEqualityComparers.BitwiseSingleEqualityComparer.GetHashCode(MoveZ);
-      if (Yaw != 0F) hash ^= pbc::ProtobufEqualityComparers.BitwiseSingleEqualityComparer.GetHashCode(Yaw);
+      if (AimX != 0F) hash ^= pbc::ProtobufEqualityComparers.BitwiseSingleEqualityComparer.GetHashCode(AimX);
+      if (AimZ != 0F) hash ^= pbc::ProtobufEqualityComparers.BitwiseSingleEqualityComparer.GetHashCode(AimZ);
       if (Buttons != 0) hash ^= Buttons.GetHashCode();
       if (_unknownFields != null) {
         hash ^= _unknownFields.GetHashCode();
@@ -241,12 +262,16 @@ namespace LiteNet.Proto {
         output.WriteRawTag(29);
         output.WriteFloat(MoveZ);
       }
-      if (Yaw != 0F) {
+      if (AimX != 0F) {
         output.WriteRawTag(37);
-        output.WriteFloat(Yaw);
+        output.WriteFloat(AimX);
+      }
+      if (AimZ != 0F) {
+        output.WriteRawTag(45);
+        output.WriteFloat(AimZ);
       }
       if (Buttons != 0) {
-        output.WriteRawTag(40);
+        output.WriteRawTag(48);
         output.WriteUInt32(Buttons);
       }
       if (_unknownFields != null) {
@@ -271,12 +296,16 @@ namespace LiteNet.Proto {
         output.WriteRawTag(29);
         output.WriteFloat(MoveZ);
       }
-      if (Yaw != 0F) {
+      if (AimX != 0F) {
         output.WriteRawTag(37);
-        output.WriteFloat(Yaw);
+        output.WriteFloat(AimX);
+      }
+      if (AimZ != 0F) {
+        output.WriteRawTag(45);
+        output.WriteFloat(AimZ);
       }
       if (Buttons != 0) {
-        output.WriteRawTag(40);
+        output.WriteRawTag(48);
         output.WriteUInt32(Buttons);
       }
       if (_unknownFields != null) {
@@ -298,7 +327,10 @@ namespace LiteNet.Proto {
       if (MoveZ != 0F) {
         size += 1 + 4;
       }
-      if (Yaw != 0F) {
+      if (AimX != 0F) {
+        size += 1 + 4;
+      }
+      if (AimZ != 0F) {
         size += 1 + 4;
       }
       if (Buttons != 0) {
@@ -325,8 +357,11 @@ namespace LiteNet.Proto {
       if (other.MoveZ != 0F) {
         MoveZ = other.MoveZ;
       }
-      if (other.Yaw != 0F) {
-        Yaw = other.Yaw;
+      if (other.AimX != 0F) {
+        AimX = other.AimX;
+      }
+      if (other.AimZ != 0F) {
+        AimZ = other.AimZ;
       }
       if (other.Buttons != 0) {
         Buttons = other.Buttons;
@@ -363,10 +398,14 @@ namespace LiteNet.Proto {
             break;
           }
           case 37: {
-            Yaw = input.ReadFloat();
+            AimX = input.ReadFloat();
             break;
           }
-          case 40: {
+          case 45: {
+            AimZ = input.ReadFloat();
+            break;
+          }
+          case 48: {
             Buttons = input.ReadUInt32();
             break;
           }
@@ -402,10 +441,14 @@ namespace LiteNet.Proto {
             break;
           }
           case 37: {
-            Yaw = input.ReadFloat();
+            AimX = input.ReadFloat();
             break;
           }
-          case 40: {
+          case 45: {
+            AimZ = input.ReadFloat();
+            break;
+          }
+          case 48: {
             Buttons = input.ReadUInt32();
             break;
           }

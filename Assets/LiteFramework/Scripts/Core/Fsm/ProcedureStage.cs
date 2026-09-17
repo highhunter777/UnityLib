@@ -17,7 +17,7 @@ namespace LiteFramework
     /// 流程依赖不从 payload 取（那是服务定位器的变体）——依赖走构造注入存为本类字段。
     /// </summary>
     public abstract class ProcedureStageBase<TId, TReq> : IStage<TId, TReq>
-        where TId : struct, Enum
+        where TId : struct
     {
         private CancellationTokenSource _cts;
 
