@@ -31,7 +31,9 @@ namespace LiteFramework.Tests
             var violations = new List<string>();
             foreach (string sourceRoot in sourceRoots)
             {
-                Assert.True(Directory.Exists(sourceRoot), $"纪律扫描目录不存在：{sourceRoot}");
+                // 框架线（main）检出里没有 Assets/LiteGame——该根不存在 = "无业务 Unity 代码可查"，
+                // 跳过而不是失败（纪律只约束**存在**的代码；同一份测试要能同时跑在两条线上）。
+                if (!Directory.Exists(sourceRoot)) continue;
                 foreach (string file in Directory.EnumerateFiles(sourceRoot, "*.cs", SearchOption.AllDirectories))
                 {
                     string[] lines = File.ReadAllLines(file);
