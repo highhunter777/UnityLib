@@ -371,7 +371,7 @@ public sealed class LTextLabel : MonoBehaviour   // 控件层新件
 | `ProcedureResult` | 销毁 BattleContext、解绑快照流、停 FrameDriver（同 §115） | ❌ **不存在** |
 
 **后果一**：联机线多处设计**已假定**这三阶段存在 → M10 第四批（客户端接缝）与 M11 开工即撞上此前置。
-**后果二**：`ProcedureOwner` 已按"流程间传参正身"设计（注释预留 `roomId / frameNo`），但**无字段承载者**。
+**后果二**：流程间传参的**承载者已换正身**（2026-09-18 对账）——`ProcedureOwner` 随 A 路线退场（2026-09-17），改为 payload `ProcedureArgs`（`readonly struct`，`ProcedureError` 读 `Error`）。`roomId / frameNo / BattleContext` 以**只读字段 + 构造入参**加在此处（`ProcedureArgs.cs` 已留注释位）；**当前只有 `Error` 一个真字段**——即三阶段未建 = 承载者仍空着，只是"往哪儿加"已定（不再新增 owner 载体、不用字符串键字典）。
 **后果三**：**"安全窗口"（回主城 / 战斗结束）的落点就是流程迁移点** —— 流程线未建 = 本设计的运行期增量重填（§2.4 语言切换 / 《UI性能优化规划》缺口 2）**当前没有真实触发者**，只有调试菜单。根因在此，不在 UI 层。
 
 ### 9.2 边界定案：流程不认识 UI id（推荐）
@@ -389,4 +389,6 @@ public sealed class LTextLabel : MonoBehaviour   // 控件层新件
 
 ### 9.4 建议排期
 
-流程线骨架（`Match/Battle/Result` 三件 + `ProcedureOwner.roomId/frameNo/BattleContext` + 安全窗口挂点）应排在 **M10 第四批之前或同期**——它同时是 M10 客户端接缝与 M11 表现层的前置，且能让"运行期重填"第一次拥有真实触发点。
+流程线骨架（`Match/Battle/Result` 三件 + `ProcedureArgs` 的 `roomId/frameNo/BattleContext` 字段位 + 安全窗口挂点）应排在 **M10 第四批之前或同期**——它同时是 M10 客户端接缝与 M11 表现层的前置，且能让"运行期重填"第一次拥有真实触发点。
+
+> **2026-09-18 对账**：§9.1 的现状表**仍然成立**——`ProcedureMain` 仍是空转占位（`RunAsync` 里没有任何 `Request`），`ProcedureId` 只有 `Launch/Preload/Main/Error`（**枚举值与 `Match/Battle/Result` 的预留说明已在 `ProcedureId.cs` 注释里**，本轮刻意不加以免出现空阶段）。改动只有一处：owner 载体换成 payload（见后果二）。

@@ -136,9 +136,9 @@ Assets/LiteGame/UI/
 
 - [x] 批③ 余件模板生成（25 件全部就位）
 - [x] 批④ 每件最小断言（编辑态 + Play 态 25/25 PASS）
-- [x] 批⑤ Demo 页改 prefab 实例（Play 实测 25/25 实例化 + 2/2 断言；`UIDemoPage` 加 `#if UNITY_EDITOR` 加载，**真机返回 null 并记日志**——待下行收集组）
+- [x] 批⑤ Demo 页改 prefab 实例（Play 实测 25/25 实例化 + 2/2 断言；`UIDemoPage` 加 `#if UNITY_EDITOR` 加载，**真机分支已由《UI资源热更缺口收口》补齐**——`LoadTemplate` 改经 `AssetService` 加载，编辑器保留 AssetDatabase 快路径）
 - [x] 批⑥ 控件 → Lua 受控 API 用法表（→ **《UI控件Lua用法表.md》**：现有 `self.ui` 13 方法 + 全局表 `Bridge.data/ui/content` 全清单 + 25 件对照 + **缺口清单（G1-G21）+ 优先级**）
 - [x] **批⑦ 受控 API 扩展（P0）**：G1 修正（`SetInteractable` 回退 `UIWidget.Interactable`）+ 新增 8 条（`SetProgress`/`SetProgressRange`/`SetHp`/`StartCountdown`/`StopCountdown`/`ShowToast`/`ShowBubble`/`ShowFlyText`）——验证：模板自检 31/31 PASS + Lua shim 实测 5/5 + `Dispatch` 真实路径 4/4；**顺带修 UIBubble 销毁期 `MissingReferenceException`**
 - [ ] 批⑧ 剩余缺口（P1/P2：星级/滚动数值/步进/输入三件/红点/列表协议/切页/动图/头像/点击区/引导/动效口/Lua 绑定区）——清单见《UI控件Lua用法表》§3
-- [ ] **YooAsset 收集组**：新增 `Assets/LiteGame/UI/` 收集组（`PackDirectory` + tag `ui`）——模板 prefab 走地址加载的**必要前置**（M6 打包配置一起做）
+- [x] **YooAsset 收集组**（**已完成，2026-09-17，见《UI资源热更缺口收口》§2**）：`LiteGameUI`（`Assets/LiteGame/UI/Screens`，`PackSeparately`，tag `ui`）+ `LiteGameWidgets`（`Assets/LiteGame/UI/Widgets`，`PackDirectory`，tag `ui`）；编辑器态采集 43 件 / UI 目录 26 件全带 tag，运行时 26/26 可加载 → PASS
 - [ ] 界面级命名约定文档（实例化后如何命名子控件，避免重名——见 §8.3-1 与 §8.2 备忘 2）
