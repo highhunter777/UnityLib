@@ -10,6 +10,12 @@ namespace LiteFramework
         private List<Action> _items;   // 惰性分配：零订阅的袋子零 List 开销
         private bool _disposed;
 
+        /// <summary>当前未释放的订阅数（0 = 袋子干净）。供归还点断言与 DevHUD 观测（订阅数单调增长 = 泄漏信号）。</summary>
+        public int Count => _items?.Count ?? 0;
+
+        /// <summary>是否已释放（释放后 Add 抛 ObjectDisposedException）。</summary>
+        public bool IsDisposed => _disposed;
+
         public void Add(Action unsubscribe)
         {
             if (unsubscribe == null) throw new ArgumentNullException(nameof(unsubscribe));

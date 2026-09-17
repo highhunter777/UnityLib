@@ -1,0 +1,189 @@
+using System.Collections.Generic;
+using System.Text;
+using Tools.DisciplineScan;
+using Xunit;
+
+namespace LiteFramework.Tests
+{
+    /// <summary>
+    /// 纪律扫描（《测试开发方案》§7.3 ②）：规则集自测 + 真实源码扫描。
+    /// 引擎在 <c>Assets/Tools/DisciplineScanner</c>（零依赖），Editor 菜单与这里**共用同一份规则**——
+    /// 取代了此前"规则在 LiteSim 引擎 / 协程扫描 / 宏扫描三处各写一遍"的重复。
+    /// </summary>
+    public sealed class DisciplineScannerTests
+    {
+        [Fact]
+        public void 纪律_R1_超越函数被命中()
+        {
+            Assert.Equal(1, Count("var v = Math.Sin(x);", LintRule.R1Transcendental));
+            Assert.Equal(1, Count("var v = MathF.Cos(x);", LintRule.R1Transcendental));
+            Assert.Equal(1, Count("var v = Math.Atan2(y, x);", LintRule.R1Transcendental));
+            Assert.Equal(1, Count("var v = Math.Pow(a, 2.0);", LintRule.R1Transcendental));
+        }
+
+        [Fact]
+        public void 纪律_R1_允许的基础运算不误报()
+        {
+            Assert.Equal(0, Count("var v = Math.Sqrt(x);", LintRule.R1Transcendental));
+            Assert.Equal(0, Count("var v = Math.Abs(x);", LintRule.R1Transcendental));
+            Assert.Equal(0, Count("var v = Math.Floor(x);", LintRule.R1Transcendental));
+        }
+
+        [Fact]
+        public void 纪律_R2_FMA写法被命中()
+        {
+            Assert.Equal(1, Count("var v = MathF.FusedMultiplyAdd(a, b, c);", LintRule.R2Fma));
+            Assert.Equal(1, Count("var v = System.Math.FusedMultiplyAdd(a, b, c);", LintRule.R2Fma));
+        }
+
+        [Fact]
+        public void 纪律_R3_浮点等值比较被命中()
+        {
+            Assert.Equal(1, Count("if (a == b) { }", LintRule.R3FloatEquality));
+            Assert.Equal(1, Count("if (a != b) { }", LintRule.R3FloatEquality));
+        }
+
+        [Fact]
+        public void 纪律_R3_零常量与关系运算豁免()
+        {
+            Assert.Equal(0, Count("if (a == 0f) { }", LintRule.R3FloatEquality));
+            Assert.Equal(0, Count("if (a != 0) { }", LintRule.R3FloatEquality));
+            Assert.Equal(0, Count("if (a <= b) { }", LintRule.R3FloatEquality));
+            Assert.Equal(0, Count("if (a >= b) { }", LintRule.R3FloatEquality));
+        }
+
+        [Fact]
+        public void 纪律_R4_按规则集门控()
+        {
+            // 未启用 R4 时不报
+            Assert.Equal(0, Count("using System.Linq;", LintRule.R1Transcendental));
+            Assert.Equal(1, Count("using System.Linq;", LintRule.R4DeterminismContainer));
+            Assert.Equal(1, Count("var q = xs.OrderBy(x => x);", LintRule.R4DeterminismContainer));
+        }
+
+        [Fact]
+        public void 纪律_R5_裸UNITY_EDITOR被命中_三宏并集豁免()
+        {
+            Assert.Equal(1, Count("#if UNITY_EDITOR\n", LintRule.R5BareUnityEditor));
+            Assert.Equal(1, Count("#if UNITY_EDITOR || DEVELOPMENT_BUILD\n", LintRule.R5BareUnityEditor));
+            Assert.Equal(1, Count("#elif UNITY_EDITOR\n", LintRule.R5BareUnityEditor));
+            Assert.Equal(0, Count("#if UNITY_EDITOR || DEVELOPMENT_BUILD || LITEFRAMEWORK_DEBUG\n", LintRule.R5BareUnityEditor));
+            Assert.Equal(0, Count("#if LITEFRAMEWORK_DEBUG\n", LintRule.R5BareUnityEditor));
+            Assert.Equal(0, Count("// #if UNITY_EDITOR\n", LintRule.R5BareUnityEditor));
+        }
+
+        [Fact]
+        public void 纪律_R6_原生协程被命中()
+        {
+            Assert.Equal(1, Count("private IEnumerator Co() { }", LintRule.R6NativeCoroutine));
+            Assert.Equal(1, Count("StartCoroutine(Co());", LintRule.R6NativeCoroutine));
+            Assert.Equal(1, Count("StopAllCoroutines();", LintRule.R6NativeCoroutine));
+            Assert.Equal(1, Count("yield return null;", LintRule.R6NativeCoroutine));
+        }
+
+        [Fact]
+        public void 纪律_注释内容不参与匹配()
+        {
+            // 注释里提到禁用 API 不算违规（UIBubble.cs 曾因此误报）
+            Assert.Equal(0, Count("// 原 StopAllCoroutines 语义，用 CTS 显式表达", LintRule.R6NativeCoroutine));
+            Assert.Equal(0, Count("/// 禁 FusedMultiplyAdd 注释", LintRule.R2Fma));
+            Assert.Equal(0, Count("// if (a == b) 注释里的比较", LintRule.R3FloatEquality));
+            Assert.Equal(0, Count("/* Math.Sin(x) */ var y = 1;", LintRule.R1Transcendental));
+            Assert.Equal(0, Count("/* FusedMultiplyAdd\n*/ var x = 1;", LintRule.R2Fma));
+            // 代码上的真违规 + 行尾注释：仍应命中
+            Assert.Equal(1, Count("var v = Math.Sin(x); // 注释", LintRule.R1Transcendental));
+        }
+
+        [Fact]
+        public void 纪律_豁免注释生效()
+        {
+            Assert.Equal(0, Count("if (a == b) { } // lint-allow R3", LintRule.R3FloatEquality));
+            // 只豁免 R3，R1 仍应命中
+            Assert.Equal(1, Count("var v = Math.Sin(x); if (a == b) { } // lint-allow R3", LintRule.R1Transcendental));
+            // 无规则号 → 整行豁免
+            Assert.Equal(0, Count("var v = Math.Sin(x); // lint-allow", LintRule.R1Transcendental));
+        }
+
+        [Fact]
+        public void 纪律_违规输出格式为文件行列规则代码()
+        {
+            List<LintViolation> v = DisciplineScanner.ScanText(
+                "Foo.cs", "var x = Math.Sin(1f);", new[] { LintRule.R1Transcendental });
+            Assert.Single(v);
+            Assert.Equal(1, v[0].Line);
+            Assert.Equal("Foo.cs:1:R1:var x = Math.Sin(1f);", v[0].ToString());
+        }
+
+        [Fact]
+        public void 纪律_默认排除_编辑器目录与生成物与引擎自身()
+        {
+            Assert.True(DisciplineScanner.IsExcluded("Assets/LiteSim/Core/Scripts/Editor/Foo.cs"));
+            Assert.True(DisciplineScanner.IsExcluded("Assets/LiteSim/Core/Scripts/SimTrigTables.cs"));
+            Assert.True(DisciplineScanner.IsExcluded("Assets/Tools/DisciplineScanner/Scripts/DisciplineScanner.cs"));
+            Assert.False(DisciplineScanner.IsExcluded("Assets/LiteSim/Core/Scripts/SimTrig.cs"));
+        }
+
+        [Fact]
+        public void 真实源码_全部目标_零违规()
+        {
+            string projectRoot = ProjectLocator.FindProjectRoot();
+            List<KeyValuePair<string, LintViolation>> hits = DisciplineScanner.ScanDefault(projectRoot);
+
+            var sb = new StringBuilder();
+            for (int i = 0; i < hits.Count; i++)
+            {
+                sb.Append('[').Append(hits[i].Key).Append("] ").Append(hits[i].Value).Append('\n');
+            }
+            Assert.True(hits.Count == 0, "纪律扫描发现违规：\n" + sb);
+        }
+
+        [Fact]
+        public void 纪律_R7_非法metaGUID被命中()
+        {
+            // 2026-09-15 事故形态：64 位 base64 guid（Unity 拒收 → 资源静默消失）
+            var v = DisciplineScanner.ScanMetaText(
+                "A.cs.meta",
+                "fileFormatVersion: 2\nguid: CnpNtin4W3zo6TQqjvzFRl7jkSDkR2TEnPSUX6izpYrJlgIFe7QCcvs=\n");
+            Assert.Single(v);
+            Assert.Equal(LintRule.R7InvalidMetaGuid, v[0].Rule);
+            Assert.Equal(2, v[0].Line);
+            Assert.Contains("CnpNtin4", v[0].Code);
+        }
+
+        [Fact]
+        public void 纪律_R7_合法GUID不误报_大小写均接受()
+        {
+            Assert.Empty(DisciplineScanner.ScanMetaText(
+                "A.cs.meta",
+                "fileFormatVersion: 2\nguid: 6c159f085a3f6d0408542447296ba288\n"));
+            Assert.Empty(DisciplineScanner.ScanMetaText(
+                "A.cs.meta",
+                "fileFormatVersion: 2\nguid: 6C159F085A3F6D0408542447296BA288\n"));
+        }
+
+        [Fact]
+        public void 纪律_R7_缺guid行被命中()
+        {
+            var v = DisciplineScanner.ScanMetaText("A.cs.meta", "fileFormatVersion: 2\n");
+            Assert.Single(v);
+            Assert.Equal(1, v[0].Line);
+            Assert.Equal("(缺少 guid 行)", v[0].Code);
+        }
+
+        [Fact]
+        public void 纪律_R7_真实仓库meta全部合法()
+        {
+            // 守卫本次事故形态：任何非法 guid 的 .meta 都会在 Unity 里静默失效
+            string projectRoot = ProjectLocator.FindProjectRoot();
+            var hits = DisciplineScanner.ScanMetas(projectRoot, "Assets");
+            var sb = new StringBuilder();
+            for (int i = 0; i < hits.Count; i++) sb.Append(hits[i]).Append('\n');
+            Assert.True(hits.Count == 0, "发现非法 .meta GUID：\n" + sb);
+        }
+
+        private static int Count(string text, LintRule rule)
+        {
+            return DisciplineScanner.ScanText("test.cs", text, new[] { rule }).Count;
+        }
+    }
+}
