@@ -25,8 +25,8 @@ namespace RoomServer
 
         private readonly StringBuilder _sb = new StringBuilder(512);
 
-        /// <summary>周期汇总（帧号/房间/快照/输入/和解率/背压/回溯——一行式，便于日志抓取）。</summary>
-        public string Format(Room room, SessionManager sessions)
+        /// <summary>周期汇总（帧号/房间/快照/输入/和解率/背压/回溯/节拍债——一行式，便于日志抓取）。</summary>
+        public string Format(Room room, SessionManager sessions, ServerLoop.LoopStats loop = null)
         {
             _sb.Clear();
             _sb.Append("[Ops] frame=").Append(room.AuthSim.Frame)
@@ -50,6 +50,10 @@ namespace RoomServer
                .Append(" degr=").Append(room.LagComp.DegradedCount)
                .Append(" | bp: throttled=").Append(room.BackpressureThrottled)
                .Append(" rejects=").Append(Rejects);
+            if (loop != null)
+                _sb.Append(" | loop: ticks=").Append(loop.Ticks)
+                   .Append(" debt=").Append(loop.DroppedTimeMs).Append("ms")
+                   .Append(" abandoned=").Append(loop.CatchUpAbandoned);
             return _sb.ToString();
         }
     }

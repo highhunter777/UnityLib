@@ -249,8 +249,11 @@ namespace RoomServer
             if (!_ops.PrintEnabled) return;
             if (_nowMs - _ops.LastPrintMs < OpsIntervalMs) return;
             _ops.LastPrintMs = _nowMs;
-            Console.WriteLine(_ops.Format(Room, _sessions));
+            Console.WriteLine(_ops.Format(Room, _sessions, LoopStats));
         }
+
+        /// <summary>节拍统计来源（宿主装配 ServerLoop 后注入；null = 不打印节拍段——用例/嵌入式用法）。</summary>
+        public ServerLoop.LoopStats LoopStats { get; set; }
 
         public Room TryGetOrCreateRoom(string roomId)
         {

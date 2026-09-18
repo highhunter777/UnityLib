@@ -28,10 +28,13 @@ using var host = new ServerHost(transport, port);
 host.Ops.PrintEnabled = !quiet;
 
 var loop = new ServerLoop(host);
+host.LoopStats = loop.Stats;                    // Ops 行带上节拍/掉债观测（常驻过载时可见）
 if (durationMs > 0)
 {
     loop.Run(durationMs);                       // 验收形态：跑满时长即退出
-    Console.WriteLine($"[RoomServer] 跑满 {durationMs}ms：帧号={host.Room.AuthSim.Frame} ticks={loop.Ticks} 掉时债={loop.DroppedTimeMs}ms");
+    var stats = loop.Stats;
+    Console.WriteLine($"[RoomServer] 跑满 {durationMs}ms：帧号={host.Room.AuthSim.Frame} ticks={stats.Ticks} " +
+        $"掉时债={stats.DroppedTimeMs}ms 放弃追帧={stats.CatchUpAbandoned}");
 }
 else
 {
