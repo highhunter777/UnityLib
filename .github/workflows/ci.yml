@@ -10,22 +10,75 @@ on:
 
 jobs:
   l1-dotnet-test:
-    name: L1 dotnet test（秒级）
-    # 先用 windows 与本地已验证环境保持一致（FileSys / SettingService 等磁盘用例在 Windows 跑绿）。
-    # 待确认 Linux 亦绿后，可改 ubuntu-latest（更快更省），或加 matrix 做跨平台校验。
-    runs-on: windows-latest
+    name: L1 dotnet test（${{ matrix.os }}）
+    # 跨平台 matrix（《测试开发方案》§7.5 缺口 j）：Sim/协议/打包纯函数必须**跨运行时一致**才算被验，
+    # 只在 Windows 跑等于没验——误差恰恰出在平台差异上（M7 FMA/超越函数结论的直接延续）。
+    # 已核对无平台专属依赖：临时目录走 Path.GetTempPath、路径一律 Ordinal + '/' 归一化、
+    # BuildHash 两端同为"行尾归一化 + 相对路径排序"、无 Win32/注册表 API。
+    strategy:
+      fail-fast: false          # 一个平台红不影响另一个平台出结论
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20         # 超时保护（防挂死占满额度）
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0        # 基线防篡改校验需要能 diff 到比较基准
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '8.0.x'
+          cache: true           # NuGet 缓存
+
+      - name: 基线防篡改校验（仅 ubuntu 跑一次）
+        if: matrix.os == 'ubuntu-latest'
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+          HEAD_MSG: ${{ github.event.head_commit.message }}
+          BEFORE_SHA: ${{ github.event.before }}
+          BASE_REF: ${{ github.base_ref }}
+        # 基线（Baselines/*.txt）是确定性的**裁判**：被随手改掉会静默掩盖确定性回归。
+        # 轻量纪律：改动基线必须在 PR 标题/正文或提交信息里带 [baseline] 标记（说明为何重录）。
+        run: |
+          set -euo pipefail
+          BASE=""
+          if [ "$EVENT_NAME" = "pull_request" ] && [ -n "$BASE_REF" ]; then
+            git fetch --depth=100 origin "$BASE_REF" >/dev/null 2>&1 || true
+            BASE="origin/$BASE_REF"
+          elif [ -n "$BEFORE_SHA" ] && git rev-parse -q --verify "$BEFORE_SHA^{commit}" >/dev/null; then
+            BASE="$BEFORE_SHA"
+          fi
+          if [ -z "$BASE" ] || ! git rev-parse -q --verify "$BASE^{commit}" >/dev/null; then
+            BASE="HEAD~1"
+          fi
+          if ! git rev-parse -q --verify "$BASE^{commit}" >/dev/null; then
+            echo "无法确定比较基准（浅历史/首个提交），跳过基线校验"
+            exit 0
+          fi
+          changed=$(git diff --name-only "$BASE" HEAD -- 'Tests/**/Baselines/**' || true)
+          if [ -z "$changed" ]; then
+            echo "✓ 基线未变更"
+            exit 0
+          fi
+          echo "检测到基线文件变更："
+          echo "$changed"
+          if printf '%s\n%s\n%s\n' "$PR_TITLE" "$PR_BODY" "$HEAD_MSG" | grep -qi '\[baseline\]'; then
+            echo "✓ 已声明 [baseline]"
+            exit 0
+          fi
+          echo "::error::基线文件被修改但未声明。请在 PR 标题/正文或提交信息中加 [baseline] 并说明为何重录（基线是确定性的裁判，静默改动会掩盖回归）。"
+          exit 1
 
       - name: dotnet test Tests/Tests.slnx
-        run: dotnet test Tests/Tests.slnx --verbosity minimal
+        # --blame-hang-timeout：单用例挂死 5 分钟后中断并输出挂起栈（超时保护）
+        run: dotnet test Tests/Tests.slnx --verbosity minimal --blame-hang-timeout 5m
 
   # ── L2（Unity 侧）门禁 ────────────────────────────────────────────────────
   # 为什么需要：L1 按路径 glob 编译、不读 .meta 也不经 Unity 编译器——2026-09-15 那次
@@ -39,6 +92,7 @@ jobs:
     name: L2 Unity 侧门禁（自托管 runner）
     if: ${{ vars.L2_ENABLED == 'true' }}
     runs-on: [self-hosted, windows]
+    timeout-minutes: 30
     steps:
       - name: Checkout
         uses: actions/checkout@v4

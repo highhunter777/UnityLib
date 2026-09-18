@@ -29,6 +29,15 @@ namespace Tools.DisciplineScan
 
         /// <summary>R7 非法 .meta GUID：guid 必须是 32 位 hex（64 位 base64 会被 Unity 拒绝导入 → 资源/类型静默消失）。</summary>
         R7InvalidMetaGuid = 7,
+
+        /// <summary>R8 禁 Resources.Load/LoadAsync（`Assets/LiteGame`）：破「资源唯一入口」——统一走资源服务/收集组。</summary>
+        R8ResourcesLoad = 8,
+
+        /// <summary>R9 禁 Mod 相关类型（`Assets/LiteSim`）：守《模组系统设计》红线 M1「模组永不进 Sim」（判定必须在权威内）。</summary>
+        R9ModInSim = 9,
+
+        /// <summary>R10 禁 INetworkService（`Shell/UI`）：薄壳/UI 不得直发业务包（网络契约归框架层，业务数据经事件/桥过）。</summary>
+        R10ShellSendsBusinessPacket = 10,
     }
 
     /// <summary>一条纪律违规。</summary>
@@ -77,6 +86,21 @@ namespace Tools.DisciplineScan
         /// <summary>R7：.meta 的 guid 行必须是 32 位 hex（2026-09-15 事故：64 位 base64 被 Unity 拒收）。</summary>
         private static readonly Regex MetaGuidValueRegex = new Regex(@"^[0-9a-fA-F]{32}$", RegexOptions.Compiled);
 
+        /// <summary>R8：资源唯一入口——禁 Resources.Load / LoadAsync（LoadAll 等未列，按《测试开发方案》§7.6 口径）。
+        /// 容忍泛型实参与空白：<c>Resources.Load&lt;GameObject&gt;("x")</c> / <c>Resources . Load (…)</c> 均命中。</summary>
+        private static readonly Regex R8Regex = new Regex(
+            @"\bResources\s*\.\s*(?:Load|LoadAsync)\s*(?:<[^<>()]*>)?\s*\(", RegexOptions.Compiled);
+
+        /// <summary>
+        /// R9：Mod 类标识符。只认「Mod/Mods 独立词」「Mod+大写驼峰」「IMod+大写」——
+        /// Mode/Model/Modify/Modules（Mod+小写）不误伤；IModXxx 因 I 与 M 间非词边界需显式列出。
+        /// </summary>
+        private static readonly Regex R9Regex = new Regex(
+            @"\b(?:Mod|Mods)(?![A-Za-z])|\bMod[A-Z]\w*|\bIMod[A-Z]\w*", RegexOptions.Compiled);
+
+        /// <summary>R10：Shell/UI 不得直发业务包——禁 INetworkService 契约。</summary>
+        private static readonly Regex R10Regex = new Regex(@"\bINetworkService\b", RegexOptions.Compiled);
+
         private static readonly Regex NumericLiteral = new Regex(
             @"^[-+]?[0-9]+(\.[0-9]+)?[fFuUlLdDmM]*$", RegexOptions.Compiled);
 
@@ -90,6 +114,9 @@ namespace Tools.DisciplineScan
             LintRule.R5BareUnityEditor,
             LintRule.R6NativeCoroutine,
             LintRule.R7InvalidMetaGuid,
+            LintRule.R8ResourcesLoad,
+            LintRule.R9ModInSim,
+            LintRule.R10ShellSendsBusinessPacket,
         };
 
         public static string RuleId(LintRule rule)
@@ -103,6 +130,9 @@ namespace Tools.DisciplineScan
                 case LintRule.R5BareUnityEditor: return "R5";
                 case LintRule.R6NativeCoroutine: return "R6";
                 case LintRule.R7InvalidMetaGuid: return "R7";
+                case LintRule.R8ResourcesLoad: return "R8";
+                case LintRule.R9ModInSim: return "R9";
+                case LintRule.R10ShellSendsBusinessPacket: return "R10";
                 default: return "R?";
             }
         }
@@ -256,6 +286,9 @@ namespace Tools.DisciplineScan
                 case LintRule.R4DeterminismContainer: return R4Regex.IsMatch(code);
                 case LintRule.R5BareUnityEditor: return HasR5Violation(code);
                 case LintRule.R6NativeCoroutine: return R6Regex.IsMatch(code);
+                case LintRule.R8ResourcesLoad: return R8Regex.IsMatch(code);
+                case LintRule.R9ModInSim: return R9Regex.IsMatch(code);
+                case LintRule.R10ShellSendsBusinessPacket: return R10Regex.IsMatch(code);
                 default: return false;
             }
         }

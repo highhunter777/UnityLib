@@ -20,7 +20,7 @@ namespace Tools.DisciplineScan
     public static class ScanTargets
     {
         // 规则子集（必须在 Default 之前初始化——静态字段按声明顺序初始化）
-        /// <summary>LiteSim：确定性数值层，R1~R5 全适用（R4 为 M8 起）。</summary>
+        /// <summary>LiteSim：确定性数值层，R1~R5 全适用（R4 为 M8 起）+ R9 模组红线（判定必须在权威内）。</summary>
         public static readonly LintRule[] SimRules =
         {
             LintRule.R1Transcendental,
@@ -28,6 +28,7 @@ namespace Tools.DisciplineScan
             LintRule.R3FloatEquality,
             LintRule.R4DeterminismContainer,
             LintRule.R5BareUnityEditor,
+            LintRule.R9ModInSim,
         };
 
         /// <summary>LiteFramework.Core：只守 R5（宏并集）；Core 合法使用 Dictionary，故不启 R4。</summary>
@@ -49,6 +50,18 @@ namespace Tools.DisciplineScan
             LintRule.R6NativeCoroutine,
         };
 
+        /// <summary>LiteGame 全域：R8 资源唯一入口（禁 Resources.Load/LoadAsync；Editor 目录由 IsExcluded 排除）。</summary>
+        public static readonly LintRule[] GameRules =
+        {
+            LintRule.R8ResourcesLoad,
+        };
+
+        /// <summary>薄壳/UI：R10 不得直发业务包（禁 INetworkService 契约）。</summary>
+        public static readonly LintRule[] ShellUiRules =
+        {
+            LintRule.R10ShellSendsBusinessPacket,
+        };
+
         /// <summary>默认扫描目标集合。</summary>
         public static readonly ScanTarget[] Default =
         {
@@ -57,6 +70,8 @@ namespace Tools.DisciplineScan
             new ScanTarget("Assets/LiteFramework/Scripts/Core", CoreRules),
             new ScanTarget("Assets/LiteFramework/Scripts/Unity", UnityRules),
             new ScanTarget("Assets/LiteGame/Scripts/Runtime", UnityRules),
+            new ScanTarget("Assets/LiteGame", GameRules),                                      // R8 资源唯一入口
+            new ScanTarget("Assets/LiteGame/Scripts/Runtime/Shell/UI", ShellUiRules),          // R10 薄壳/UI 不发业务包
         };
 
         /// <summary>

@@ -181,6 +181,56 @@ namespace LiteFramework.Tests
             Assert.True(hits.Count == 0, "发现非法 .meta GUID：\n" + sb);
         }
 
+        [Fact]
+        public void 纪律_R8_ResourcesLoad被命中()
+        {
+            Assert.Equal(1, Count("var go = Resources.Load<GameObject>(\"x\");", LintRule.R8ResourcesLoad));
+            Assert.Equal(1, Count("var op = Resources.LoadAsync(\"x\");", LintRule.R8ResourcesLoad));
+            Assert.Equal(1, Count("var go = Resources . Load (\"x\");", LintRule.R8ResourcesLoad));   // 空白容忍
+            Assert.Equal(0, Count("// 曾用 Resources.Load 取配置，已改资源服务", LintRule.R8ResourcesLoad));
+            Assert.Equal(0, Count("_assets.Load<GameObject>(\"x\");", LintRule.R8ResourcesLoad));    // 正确入口不报
+        }
+
+        [Fact]
+        public void 纪律_R9_Mod类型被命中_驼峰与独立词与接口前缀()
+        {
+            Assert.Equal(1, Count("var m = new ModLoader();", LintRule.R9ModInSim));
+            Assert.Equal(1, Count("ModManager.Init();", LintRule.R9ModInSim));
+            Assert.Equal(1, Count("private IModContext _ctx;", LintRule.R9ModInSim));
+            Assert.Equal(1, Count("var mod = Mod;", LintRule.R9ModInSim));
+        }
+
+        [Fact]
+        public void 纪律_R9_Mod加小写不误报()
+        {
+            // Mod 后接小写 = Mode/Model/Modify/Modules/Modulo —— 都不是模组
+            Assert.Equal(0, Count("var mode = SimMode.Duel;", LintRule.R9ModInSim));
+            Assert.Equal(0, Count("var m = _model;", LintRule.R9ModInSim));
+            Assert.Equal(0, Count("ModifyValue(x);", LintRule.R9ModInSim));
+            Assert.Equal(0, Count("var mods = modules;", LintRule.R9ModInSim));
+        }
+
+        [Fact]
+        public void 纪律_R10_壳UI直发INetworkService被命中()
+        {
+            Assert.Equal(1, Count("private readonly INetworkService _net;", LintRule.R10ShellSendsBusinessPacket));
+            Assert.Equal(1, Count("var n = container.Resolve<INetworkService>();", LintRule.R10ShellSendsBusinessPacket));
+            Assert.Equal(0, Count("var s = new DockSlotService();", LintRule.R10ShellSendsBusinessPacket));
+        }
+
+        [Fact]
+        public void 纪律_R8R9R10_按规则集门控_不污染其他根()
+        {
+            // R8 只在 GameRules 生效：Sim 的 SimRules 里没有 R8 → 同文本不报（规则集门控语义）
+            Assert.Equal(0, Count("Resources.Load(\"x\");", LintRule.R1Transcendental));
+            // 规则号命名与 lint-allow 解析
+            Assert.Equal("R8", DisciplineScanner.RuleId(LintRule.R8ResourcesLoad));
+            Assert.Equal("R9", DisciplineScanner.RuleId(LintRule.R9ModInSim));
+            Assert.Equal("R10", DisciplineScanner.RuleId(LintRule.R10ShellSendsBusinessPacket));
+            // 行内豁免仍适用（含规则号的豁免只免该条）
+            Assert.Equal(0, Count("Resources.Load(\"x\"); // lint-allow R8", LintRule.R8ResourcesLoad));
+        }
+
         private static int Count(string text, LintRule rule)
         {
             return DisciplineScanner.ScanText("test.cs", text, new[] { rule }).Count;

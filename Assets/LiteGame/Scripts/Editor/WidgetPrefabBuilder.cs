@@ -813,6 +813,16 @@ namespace LiteGame.Editor
         [MenuItem("LiteGame/UI/校验控件模板")]
         private static void Run()
         {
+            var (pass, fail) = RunAll();
+            Debug.Log($"[{Tag}] 模板自检完成 PASS={pass} FAIL={fail}");
+        }
+
+        /// <summary>
+        /// 自检主体（菜单与 EditMode 用例共用）：返回 通过数 / 失败数。
+        /// L2 门禁经 `Assets/Tests/EditMode` 的用例调用它——**不重复实现**，菜单与 CI 同源。
+        /// </summary>
+        public static (int pass, int fail) RunAll()
+        {
             int pass = 0, fail = 0;
             pass += Check("StateButton：组件+底图+可交互默认", () =>
             {
@@ -1168,7 +1178,7 @@ namespace LiteGame.Editor
                 return ok;
             }, ref fail);
 
-            Debug.Log($"[{Tag}] 模板自检完成 PASS={pass} FAIL={fail}");
+            return (pass, fail);
         }
 
         private sealed class CountSource : IVirtualListSource

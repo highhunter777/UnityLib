@@ -86,10 +86,23 @@ if ($MetaScanOnly) {
 $descriptor = Join-Path $ProjectPath 'Library\Pipeline\.unity-pipeline-port'
 $unityAvailable = $null -ne (Get-Command 'unity' -ErrorAction SilentlyContinue)
 
-function Invoke-PipelineCommand([string]$command) {
-    $out = & unity command $command --project-path $ProjectPath 2>&1
-    if ($LASTEXITCODE -ne 0) { throw "unity command $command 失败: $($out -join ' ')" }
+function Invoke-PipelineCommand([string]$command, [string[]]$cmdArgs) {
+    # 命令名与参数必须分开传：`unity command run_tests mode=EditMode`
+    if ($cmdArgs -and $cmdArgs.Count -gt 0) {
+        $out = & unity command $command @cmdArgs --project-path $ProjectPath 2>&1
+    }
+    else {
+        $out = & unity command $command --project-path $ProjectPath 2>&1
+    }
+    if ($LASTEXITCODE -ne 0) { throw "unity command $command $($cmdArgs -join ' ') 失败: $($out -join ' ')" }
     return ($out -join "`n")
+}
+
+# 从 Pipeline 的 JSON 结果里取整数字段（取不到返回 -1，便于区分"0 条"与"解析失败"）
+function Get-JsonInt([string]$text, [string]$key) {
+    $m = [regex]::Match($text, '"' + $key + '"\s*:\s*(\d+)')
+    if ($m.Success) { return [int]$m.Groups[1].Value }
+    return -1
 }
 
 if ((Test-Path $descriptor) -and -not $RunEditModeTests) {
@@ -118,6 +131,18 @@ if ((Test-Path $descriptor) -and -not $RunEditModeTests) {
                 Write-Ok "控制台无编译错误（error 级条目 $errCount 条，均非 CS 编译错误）"
                 if ($errCount -gt 0) { Write-Note "有 $errCount 条非编译类 error（如程序集加载告警）；明细：unity command console --project-path `"$ProjectPath`"" }
             }
+
+            # ③ Unity EditMode 用例（#27/#28）：经 Pipeline 直接跑，编辑器无需关闭。
+            # 用例在 Assets/Tests/EditMode（IEEE 基线逐位对账 + UI 模板/资源完整性）；
+            # Total=0 视为失败——否则"测试程序集没编进来"会静默通过。
+            $rt = Invoke-PipelineCommand 'run_tests' @('mode=EditMode')
+            $total  = Get-JsonInt $rt 'Total'
+            $passed = Get-JsonInt $rt 'Passed'
+            $failed = Get-JsonInt $rt 'Failed'
+            Write-Host "  run_tests(EditMode): Total=$total Passed=$passed Failed=$failed" -ForegroundColor DarkGray
+            if ($total -le 0) { Write-Bad 'EditMode 用例数 = 0（测试程序集未编入？检查 Assets/Tests/EditMode 的 asmdef 与 UNITY_INCLUDE_TESTS）' }
+            elseif ($failed -gt 0) { Write-Bad "EditMode 用例失败 $failed 项（Total=$total）——明细：unity command run_tests mode=EditMode --project-path `"$ProjectPath`"" }
+            else { Write-Ok "EditMode 用例全绿（$passed/$total）" }
         }
         catch { Write-Bad "Pipeline 命令执行失败：$($_.Exception.Message)" }
     }
