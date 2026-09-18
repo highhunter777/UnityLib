@@ -1,18 +1,41 @@
 using System;
 using System.Threading;
+using LiteSim;
 using RoomServer;
 
-// RoomServer 入口（M10 批①骨架 + 批②权威循环装配点）：MVP 参数固定（端口 17777 / Room-A / 2 人房）。
-// 权威循环由 ServerHost.Pump 承担；本入口只做装配与常驻泵（节拍 Sleep(1) + 绝对锚定在 Room.StepFrame 调用侧由
-// 测试/宿主控制推进——常驻形态每循环一权威帧，60Hz 由 Sleep 节拍近似，精度要求见实施记录）。
-Console.WriteLine("[RoomServer] 启动（MVP：端口 17777 / 房间 Room-A / 期望 2 人）");
+// RoomServer 入口（M10：批② 权威循环 + 批③ 快照/回溯/Ops）。
+// MVP 参数固定（端口 17777 / Room-A / 2 人房）；节拍由 ServerLoop 绝对锚定（60Hz，防漂移累积）。
+// 常用命令行：--port <n>（默认 17777）、--duration <ms>（跑满即退出，验收脚本用）、--quiet（关 Ops 打印）。
+int port = ServerHost.Port;
+long durationMs = 0;
+bool quiet = false;
+
+for (int i = 0; i < args.Length; i++)
+{
+    switch (args[i])
+    {
+        case "--port": if (i + 1 < args.Length) port = int.Parse(args[++i]); break;
+        case "--duration": if (i + 1 < args.Length) durationMs = long.Parse(args[++i]); break;
+        case "--quiet": quiet = true; break;
+    }
+}
+
+Console.WriteLine($"[RoomServer] 启动（端口 {port} / 房间 {ServerHost.DefaultRoomId} / {SimConfig.TickRate}Hz 权威步 / {SimConfig.SnapshotHz}Hz 快照）");
+Console.WriteLine($"[RoomServer] buildHash={ServerHost.ServerBuildHash}（源码内容哈希——Sim 或协议一改即变）");
 
 using var transport = new LiteNet.Transport.KcpTransportServer();
-var host = new ServerHost(transport, ServerHost.Port);
-Console.WriteLine($"[RoomServer] 监听 17777，房间 {ServerHost.DefaultRoomId}，buildHash={ServerHost.ServerBuildHash}");
+using var host = new ServerHost(transport, port);
+host.Ops.PrintEnabled = !quiet;
 
-while (true)
+var loop = new ServerLoop(host);
+if (durationMs > 0)
 {
-    host.Pump();              // Incoming → 权威步 → Outgoing
-    Thread.Sleep(1);          // 60Hz 权威步由调用节奏近似（MVP 单循环；节拍锚定批③与 FrameAggregator 一并收口）
+    loop.Run(durationMs);                       // 验收形态：跑满时长即退出
+    Console.WriteLine($"[RoomServer] 跑满 {durationMs}ms：帧号={host.Room.AuthSim.Frame} ticks={loop.Ticks} 掉时债={loop.DroppedTimeMs}ms");
+}
+else
+{
+    loop.Start();                               // 常驻形态
+    Console.WriteLine("[RoomServer] 常驻中（Ctrl+C 退出）");
+    Thread.Sleep(Timeout.Infinite);
 }

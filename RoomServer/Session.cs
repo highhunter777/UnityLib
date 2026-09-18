@@ -28,11 +28,23 @@ namespace RoomServer
         /// <summary>断线标记（掉线不停帧：权威循环对断线者沿用空输入 §4.5-2）。</summary>
         public bool Disconnected;
 
-        /// <summary>E1 背压水位（待发快照/信令字节数）——批③按此降档；本批为计数骨架。</summary>
+        /// <summary>E1 背压水位（待发快照/信令字节数，累计口径）——批③ 按此降档。</summary>
         public long SendQueueBytes;
+
+        /// <summary>客户端已确认消化的下行字节（ack 到达即视为队列被消化——kcp2k 重传使水位偏保守）。</summary>
+        public long AckedBytes;
 
         /// <summary>E1 降级计数（水位超限被跳过/降档的发送次数——Ops 观测）。</summary>
         public int BackpressureDrops;
+
+        /// <summary>当前背压档位（0 = 全速；1 抽帧 / 2 收缩 AOI / 3 裁实体——《服务端架构设计》§10-E1）。</summary>
+        public int BackpressureTier;
+
+        /// <summary>档位恢复的滞留起点帧（-1 = 未在恢复观察中；连续达标 <see cref="ProtocolConstants.RecoverHoldMillis"/> 才降一档）。</summary>
+        public int RecoverSinceFrame = -1;
+
+        /// <summary>客户端已收的最新快照帧号（Input.ackSnapshot 上报；-1 = 尚无）。全量兜底判据与回溯对齐都用它。</summary>
+        public int LastAckSnapshot = -1;
 
         public Session(int connectionId, long nowMs)
         {

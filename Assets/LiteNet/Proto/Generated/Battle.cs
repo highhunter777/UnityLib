@@ -37,15 +37,18 @@ namespace LiteNet.Proto {
             "ASgFEg8KB2lzX2Z1bGwYAiABKAgSJAoFc2xvdHMYAyADKAsyFS5saXRlYmF0",
             "dGxlLlNsb3REZWx0YRIQCghjaGVja3N1bRgEIAEoDRIRCglhY2tfaW5wdXQY",
             "BSABKAUiQQoLSm9pblJlcXVlc3QSDwoHcm9vbV9pZBgBIAEoCRINCgV0b2tl",
-            "bhgCIAEoCRISCgpidWlsZF9oYXNoGAMgASgJIi0KB0pvaW5BY2sSEQoJcGxh",
-            "eWVyX2lkGAEgASgFEg8KB21lbWJlcnMYAiADKAUiLgoJU3RhcnRHYW1lEgwK",
-            "BHNlZWQYASABKAMSEwoLY29uZmlnX2hhc2gYAiABKA0iBwoFTGVhdmUiIAoJ",
-            "SGVhcnRiZWF0EhMKC2NsaWVudF90aW1lGAEgASgDIioKEFJlY29ubmVjdFJl",
-            "cXVlc3QSFgoOb25lX3RpbWVfdG9rZW4YASABKAkidwoRUmVjb25uZWN0UmVz",
-            "cG9uc2USCgoCb2sYASABKAgSKwoIc25hcHNob3QYAiABKAsyGS5saXRlYmF0",
-            "dGxlLlN0YXRlU25hcHNob3QSKQoHaGlzdG9yeRgDIAMoCzIYLmxpdGViYXR0",
-            "bGUuSW5wdXRNZXNzYWdlIh8KDk1pc21hdGNoUmVwb3J0Eg0KBWZyYW1lGAEg",
-            "ASgFQhCqAg1MaXRlTmV0LlByb3RvYgZwcm90bzM="));
+            "bhgCIAEoCRISCgpidWlsZF9oYXNoGAMgASgJIpABCgdKb2luQWNrEhEKCXBs",
+            "YXllcl9pZBgBIAEoBRIPCgdtZW1iZXJzGAIgAygFEhcKD3JlY29ubmVjdF90",
+            "b2tlbhgDIAEoCRIgChhyZWNvbm5lY3Rfd2luZG93X3NlY29uZHMYBCABKAUS",
+            "EwoLc25hcHNob3RfaHoYBSABKAUSEQoJdGlja19yYXRlGAYgASgFIj0KCVN0",
+            "YXJ0R2FtZRIMCgRzZWVkGAEgASgDEhMKC2NvbmZpZ19oYXNoGAIgASgNEg0K",
+            "BWZyYW1lGAMgASgFIgcKBUxlYXZlIiAKCUhlYXJ0YmVhdBITCgtjbGllbnRf",
+            "dGltZRgBIAEoAyIqChBSZWNvbm5lY3RSZXF1ZXN0EhYKDm9uZV90aW1lX3Rv",
+            "a2VuGAEgASgJIocBChFSZWNvbm5lY3RSZXNwb25zZRIKCgJvaxgBIAEoCBIO",
+            "CgZyZWFzb24YBCABKAkSKwoIc25hcHNob3QYAiABKAsyGS5saXRlYmF0dGxl",
+            "LlN0YXRlU25hcHNob3QSKQoHaGlzdG9yeRgDIAMoCzIYLmxpdGViYXR0bGUu",
+            "SW5wdXRNZXNzYWdlIh8KDk1pc21hdGNoUmVwb3J0Eg0KBWZyYW1lGAEgASgF",
+            "QhCqAg1MaXRlTmV0LlByb3RvYgZwcm90bzM="));
       descriptor = pbr::FileDescriptor.FromGeneratedCode(descriptorData,
           new pbr::FileDescriptor[] { },
           new pbr::GeneratedClrTypeInfo(null, null, new pbr::GeneratedClrTypeInfo[] {
@@ -54,12 +57,12 @@ namespace LiteNet.Proto {
             new pbr::GeneratedClrTypeInfo(typeof(global::LiteNet.Proto.SlotDelta), global::LiteNet.Proto.SlotDelta.Parser, new[]{ "Slot", "Id", "PosX", "PosY", "PosZ", "VelX", "VelY", "VelZ", "Yaw", "Hp", "Flags" }, null, null, null, null),
             new pbr::GeneratedClrTypeInfo(typeof(global::LiteNet.Proto.StateSnapshot), global::LiteNet.Proto.StateSnapshot.Parser, new[]{ "Frame", "IsFull", "Slots", "Checksum", "AckInput" }, null, null, null, null),
             new pbr::GeneratedClrTypeInfo(typeof(global::LiteNet.Proto.JoinRequest), global::LiteNet.Proto.JoinRequest.Parser, new[]{ "RoomId", "Token", "BuildHash" }, null, null, null, null),
-            new pbr::GeneratedClrTypeInfo(typeof(global::LiteNet.Proto.JoinAck), global::LiteNet.Proto.JoinAck.Parser, new[]{ "PlayerId", "Members" }, null, null, null, null),
-            new pbr::GeneratedClrTypeInfo(typeof(global::LiteNet.Proto.StartGame), global::LiteNet.Proto.StartGame.Parser, new[]{ "Seed", "ConfigHash" }, null, null, null, null),
+            new pbr::GeneratedClrTypeInfo(typeof(global::LiteNet.Proto.JoinAck), global::LiteNet.Proto.JoinAck.Parser, new[]{ "PlayerId", "Members", "ReconnectToken", "ReconnectWindowSeconds", "SnapshotHz", "TickRate" }, null, null, null, null),
+            new pbr::GeneratedClrTypeInfo(typeof(global::LiteNet.Proto.StartGame), global::LiteNet.Proto.StartGame.Parser, new[]{ "Seed", "ConfigHash", "Frame" }, null, null, null, null),
             new pbr::GeneratedClrTypeInfo(typeof(global::LiteNet.Proto.Leave), global::LiteNet.Proto.Leave.Parser, null, null, null, null, null),
             new pbr::GeneratedClrTypeInfo(typeof(global::LiteNet.Proto.Heartbeat), global::LiteNet.Proto.Heartbeat.Parser, new[]{ "ClientTime" }, null, null, null, null),
             new pbr::GeneratedClrTypeInfo(typeof(global::LiteNet.Proto.ReconnectRequest), global::LiteNet.Proto.ReconnectRequest.Parser, new[]{ "OneTimeToken" }, null, null, null, null),
-            new pbr::GeneratedClrTypeInfo(typeof(global::LiteNet.Proto.ReconnectResponse), global::LiteNet.Proto.ReconnectResponse.Parser, new[]{ "Ok", "Snapshot", "History" }, null, null, null, null),
+            new pbr::GeneratedClrTypeInfo(typeof(global::LiteNet.Proto.ReconnectResponse), global::LiteNet.Proto.ReconnectResponse.Parser, new[]{ "Ok", "Reason", "Snapshot", "History" }, null, null, null, null),
             new pbr::GeneratedClrTypeInfo(typeof(global::LiteNet.Proto.MismatchReport), global::LiteNet.Proto.MismatchReport.Parser, new[]{ "Frame" }, null, null, null, null)
           }));
     }
@@ -1956,6 +1959,9 @@ namespace LiteNet.Proto {
 
   }
 
+  /// <summary>
+  /// 字段 3~6 为批③ 追加（只增不改：旧端忽略未知字段，wire 兼容；无重编号）
+  /// </summary>
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
   public sealed partial class JoinAck : pb::IMessage<JoinAck>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
@@ -1993,6 +1999,10 @@ namespace LiteNet.Proto {
     public JoinAck(JoinAck other) : this() {
       playerId_ = other.playerId_;
       members_ = other.members_.Clone();
+      reconnectToken_ = other.reconnectToken_;
+      reconnectWindowSeconds_ = other.reconnectWindowSeconds_;
+      snapshotHz_ = other.snapshotHz_;
+      tickRate_ = other.tickRate_;
       _unknownFields = pb::UnknownFieldSet.Clone(other._unknownFields);
     }
 
@@ -2025,6 +2035,66 @@ namespace LiteNet.Proto {
       get { return members_; }
     }
 
+    /// <summary>Field number for the "reconnect_token" field.</summary>
+    public const int ReconnectTokenFieldNumber = 3;
+    private string reconnectToken_ = "";
+    /// <summary>
+    /// E3 一次性重连票据（进房成功才发；断线后凭它换权威快照）
+    /// </summary>
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public string ReconnectToken {
+      get { return reconnectToken_; }
+      set {
+        reconnectToken_ = pb::ProtoPreconditions.CheckNotNull(value, "value");
+      }
+    }
+
+    /// <summary>Field number for the "reconnect_window_seconds" field.</summary>
+    public const int ReconnectWindowSecondsFieldNumber = 4;
+    private int reconnectWindowSeconds_;
+    /// <summary>
+    /// 票据有效期（秒）
+    /// </summary>
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public int ReconnectWindowSeconds {
+      get { return reconnectWindowSeconds_; }
+      set {
+        reconnectWindowSeconds_ = value;
+      }
+    }
+
+    /// <summary>Field number for the "snapshot_hz" field.</summary>
+    public const int SnapshotHzFieldNumber = 5;
+    private int snapshotHz_;
+    /// <summary>
+    /// 服务器当前快照频率（客户端插值/预测参数自举，防两端常量漂移）
+    /// </summary>
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public int SnapshotHz {
+      get { return snapshotHz_; }
+      set {
+        snapshotHz_ = value;
+      }
+    }
+
+    /// <summary>Field number for the "tick_rate" field.</summary>
+    public const int TickRateFieldNumber = 6;
+    private int tickRate_;
+    /// <summary>
+    /// 服务器逻辑帧率
+    /// </summary>
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public int TickRate {
+      get { return tickRate_; }
+      set {
+        tickRate_ = value;
+      }
+    }
+
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
     public override bool Equals(object other) {
@@ -2042,6 +2112,10 @@ namespace LiteNet.Proto {
       }
       if (PlayerId != other.PlayerId) return false;
       if(!members_.Equals(other.members_)) return false;
+      if (ReconnectToken != other.ReconnectToken) return false;
+      if (ReconnectWindowSeconds != other.ReconnectWindowSeconds) return false;
+      if (SnapshotHz != other.SnapshotHz) return false;
+      if (TickRate != other.TickRate) return false;
       return Equals(_unknownFields, other._unknownFields);
     }
 
@@ -2051,6 +2125,10 @@ namespace LiteNet.Proto {
       int hash = 1;
       if (PlayerId != 0) hash ^= PlayerId.GetHashCode();
       hash ^= members_.GetHashCode();
+      if (ReconnectToken.Length != 0) hash ^= ReconnectToken.GetHashCode();
+      if (ReconnectWindowSeconds != 0) hash ^= ReconnectWindowSeconds.GetHashCode();
+      if (SnapshotHz != 0) hash ^= SnapshotHz.GetHashCode();
+      if (TickRate != 0) hash ^= TickRate.GetHashCode();
       if (_unknownFields != null) {
         hash ^= _unknownFields.GetHashCode();
       }
@@ -2074,6 +2152,22 @@ namespace LiteNet.Proto {
         output.WriteInt32(PlayerId);
       }
       members_.WriteTo(output, _repeated_members_codec);
+      if (ReconnectToken.Length != 0) {
+        output.WriteRawTag(26);
+        output.WriteString(ReconnectToken);
+      }
+      if (ReconnectWindowSeconds != 0) {
+        output.WriteRawTag(32);
+        output.WriteInt32(ReconnectWindowSeconds);
+      }
+      if (SnapshotHz != 0) {
+        output.WriteRawTag(40);
+        output.WriteInt32(SnapshotHz);
+      }
+      if (TickRate != 0) {
+        output.WriteRawTag(48);
+        output.WriteInt32(TickRate);
+      }
       if (_unknownFields != null) {
         _unknownFields.WriteTo(output);
       }
@@ -2089,6 +2183,22 @@ namespace LiteNet.Proto {
         output.WriteInt32(PlayerId);
       }
       members_.WriteTo(ref output, _repeated_members_codec);
+      if (ReconnectToken.Length != 0) {
+        output.WriteRawTag(26);
+        output.WriteString(ReconnectToken);
+      }
+      if (ReconnectWindowSeconds != 0) {
+        output.WriteRawTag(32);
+        output.WriteInt32(ReconnectWindowSeconds);
+      }
+      if (SnapshotHz != 0) {
+        output.WriteRawTag(40);
+        output.WriteInt32(SnapshotHz);
+      }
+      if (TickRate != 0) {
+        output.WriteRawTag(48);
+        output.WriteInt32(TickRate);
+      }
       if (_unknownFields != null) {
         _unknownFields.WriteTo(ref output);
       }
@@ -2103,6 +2213,18 @@ namespace LiteNet.Proto {
         size += 1 + pb::CodedOutputStream.ComputeInt32Size(PlayerId);
       }
       size += members_.CalculateSize(_repeated_members_codec);
+      if (ReconnectToken.Length != 0) {
+        size += 1 + pb::CodedOutputStream.ComputeStringSize(ReconnectToken);
+      }
+      if (ReconnectWindowSeconds != 0) {
+        size += 1 + pb::CodedOutputStream.ComputeInt32Size(ReconnectWindowSeconds);
+      }
+      if (SnapshotHz != 0) {
+        size += 1 + pb::CodedOutputStream.ComputeInt32Size(SnapshotHz);
+      }
+      if (TickRate != 0) {
+        size += 1 + pb::CodedOutputStream.ComputeInt32Size(TickRate);
+      }
       if (_unknownFields != null) {
         size += _unknownFields.CalculateSize();
       }
@@ -2119,6 +2241,18 @@ namespace LiteNet.Proto {
         PlayerId = other.PlayerId;
       }
       members_.Add(other.members_);
+      if (other.ReconnectToken.Length != 0) {
+        ReconnectToken = other.ReconnectToken;
+      }
+      if (other.ReconnectWindowSeconds != 0) {
+        ReconnectWindowSeconds = other.ReconnectWindowSeconds;
+      }
+      if (other.SnapshotHz != 0) {
+        SnapshotHz = other.SnapshotHz;
+      }
+      if (other.TickRate != 0) {
+        TickRate = other.TickRate;
+      }
       _unknownFields = pb::UnknownFieldSet.MergeFrom(_unknownFields, other._unknownFields);
     }
 
@@ -2147,6 +2281,22 @@ namespace LiteNet.Proto {
             members_.AddEntriesFrom(input, _repeated_members_codec);
             break;
           }
+          case 26: {
+            ReconnectToken = input.ReadString();
+            break;
+          }
+          case 32: {
+            ReconnectWindowSeconds = input.ReadInt32();
+            break;
+          }
+          case 40: {
+            SnapshotHz = input.ReadInt32();
+            break;
+          }
+          case 48: {
+            TickRate = input.ReadInt32();
+            break;
+          }
         }
       }
     #endif
@@ -2173,6 +2323,22 @@ namespace LiteNet.Proto {
           case 18:
           case 16: {
             members_.AddEntriesFrom(ref input, _repeated_members_codec);
+            break;
+          }
+          case 26: {
+            ReconnectToken = input.ReadString();
+            break;
+          }
+          case 32: {
+            ReconnectWindowSeconds = input.ReadInt32();
+            break;
+          }
+          case 40: {
+            SnapshotHz = input.ReadInt32();
+            break;
+          }
+          case 48: {
+            TickRate = input.ReadInt32();
             break;
           }
         }
@@ -2219,6 +2385,7 @@ namespace LiteNet.Proto {
     public StartGame(StartGame other) : this() {
       seed_ = other.seed_;
       configHash_ = other.configHash_;
+      frame_ = other.frame_;
       _unknownFields = pb::UnknownFieldSet.Clone(other._unknownFields);
     }
 
@@ -2252,6 +2419,21 @@ namespace LiteNet.Proto {
       }
     }
 
+    /// <summary>Field number for the "frame" field.</summary>
+    public const int FrameFieldNumber = 3;
+    private int frame_;
+    /// <summary>
+    /// 开局时的权威帧号（批③ 追加；客户端据此锚定本地帧轴）
+    /// </summary>
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public int Frame {
+      get { return frame_; }
+      set {
+        frame_ = value;
+      }
+    }
+
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
     public override bool Equals(object other) {
@@ -2269,6 +2451,7 @@ namespace LiteNet.Proto {
       }
       if (Seed != other.Seed) return false;
       if (ConfigHash != other.ConfigHash) return false;
+      if (Frame != other.Frame) return false;
       return Equals(_unknownFields, other._unknownFields);
     }
 
@@ -2278,6 +2461,7 @@ namespace LiteNet.Proto {
       int hash = 1;
       if (Seed != 0L) hash ^= Seed.GetHashCode();
       if (ConfigHash != 0) hash ^= ConfigHash.GetHashCode();
+      if (Frame != 0) hash ^= Frame.GetHashCode();
       if (_unknownFields != null) {
         hash ^= _unknownFields.GetHashCode();
       }
@@ -2304,6 +2488,10 @@ namespace LiteNet.Proto {
         output.WriteRawTag(16);
         output.WriteUInt32(ConfigHash);
       }
+      if (Frame != 0) {
+        output.WriteRawTag(24);
+        output.WriteInt32(Frame);
+      }
       if (_unknownFields != null) {
         _unknownFields.WriteTo(output);
       }
@@ -2322,6 +2510,10 @@ namespace LiteNet.Proto {
         output.WriteRawTag(16);
         output.WriteUInt32(ConfigHash);
       }
+      if (Frame != 0) {
+        output.WriteRawTag(24);
+        output.WriteInt32(Frame);
+      }
       if (_unknownFields != null) {
         _unknownFields.WriteTo(ref output);
       }
@@ -2337,6 +2529,9 @@ namespace LiteNet.Proto {
       }
       if (ConfigHash != 0) {
         size += 1 + pb::CodedOutputStream.ComputeUInt32Size(ConfigHash);
+      }
+      if (Frame != 0) {
+        size += 1 + pb::CodedOutputStream.ComputeInt32Size(Frame);
       }
       if (_unknownFields != null) {
         size += _unknownFields.CalculateSize();
@@ -2355,6 +2550,9 @@ namespace LiteNet.Proto {
       }
       if (other.ConfigHash != 0) {
         ConfigHash = other.ConfigHash;
+      }
+      if (other.Frame != 0) {
+        Frame = other.Frame;
       }
       _unknownFields = pb::UnknownFieldSet.MergeFrom(_unknownFields, other._unknownFields);
     }
@@ -2383,6 +2581,10 @@ namespace LiteNet.Proto {
             ConfigHash = input.ReadUInt32();
             break;
           }
+          case 24: {
+            Frame = input.ReadInt32();
+            break;
+          }
         }
       }
     #endif
@@ -2408,6 +2610,10 @@ namespace LiteNet.Proto {
           }
           case 16: {
             ConfigHash = input.ReadUInt32();
+            break;
+          }
+          case 24: {
+            Frame = input.ReadInt32();
             break;
           }
         }
@@ -3010,6 +3216,7 @@ namespace LiteNet.Proto {
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
     public ReconnectResponse(ReconnectResponse other) : this() {
       ok_ = other.ok_;
+      reason_ = other.reason_;
       snapshot_ = other.snapshot_ != null ? other.snapshot_.Clone() : null;
       history_ = other.history_.Clone();
       _unknownFields = pb::UnknownFieldSet.Clone(other._unknownFields);
@@ -3033,9 +3240,27 @@ namespace LiteNet.Proto {
       }
     }
 
+    /// <summary>Field number for the "reason" field.</summary>
+    public const int ReasonFieldNumber = 4;
+    private string reason_ = "";
+    /// <summary>
+    /// 失败原因（批③ 追加）
+    /// </summary>
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public string Reason {
+      get { return reason_; }
+      set {
+        reason_ = pb::ProtoPreconditions.CheckNotNull(value, "value");
+      }
+    }
+
     /// <summary>Field number for the "snapshot" field.</summary>
     public const int SnapshotFieldNumber = 2;
     private global::LiteNet.Proto.StateSnapshot snapshot_;
+    /// <summary>
+    /// 权威快照（首选路径 §5.6）
+    /// </summary>
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
     public global::LiteNet.Proto.StateSnapshot Snapshot {
@@ -3050,6 +3275,9 @@ namespace LiteNet.Proto {
     private static readonly pb::FieldCodec<global::LiteNet.Proto.InputMessage> _repeated_history_codec
         = pb::FieldCodec.ForMessage(26, global::LiteNet.Proto.InputMessage.Parser);
     private readonly pbc::RepeatedField<global::LiteNet.Proto.InputMessage> history_ = new pbc::RepeatedField<global::LiteNet.Proto.InputMessage>();
+    /// <summary>
+    /// 后续输入历史（客户端据此在快照帧上续跑，无需重放全史）
+    /// </summary>
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
     public pbc::RepeatedField<global::LiteNet.Proto.InputMessage> History {
@@ -3072,6 +3300,7 @@ namespace LiteNet.Proto {
         return true;
       }
       if (Ok != other.Ok) return false;
+      if (Reason != other.Reason) return false;
       if (!object.Equals(Snapshot, other.Snapshot)) return false;
       if(!history_.Equals(other.history_)) return false;
       return Equals(_unknownFields, other._unknownFields);
@@ -3082,6 +3311,7 @@ namespace LiteNet.Proto {
     public override int GetHashCode() {
       int hash = 1;
       if (Ok != false) hash ^= Ok.GetHashCode();
+      if (Reason.Length != 0) hash ^= Reason.GetHashCode();
       if (snapshot_ != null) hash ^= Snapshot.GetHashCode();
       hash ^= history_.GetHashCode();
       if (_unknownFields != null) {
@@ -3111,6 +3341,10 @@ namespace LiteNet.Proto {
         output.WriteMessage(Snapshot);
       }
       history_.WriteTo(output, _repeated_history_codec);
+      if (Reason.Length != 0) {
+        output.WriteRawTag(34);
+        output.WriteString(Reason);
+      }
       if (_unknownFields != null) {
         _unknownFields.WriteTo(output);
       }
@@ -3130,6 +3364,10 @@ namespace LiteNet.Proto {
         output.WriteMessage(Snapshot);
       }
       history_.WriteTo(ref output, _repeated_history_codec);
+      if (Reason.Length != 0) {
+        output.WriteRawTag(34);
+        output.WriteString(Reason);
+      }
       if (_unknownFields != null) {
         _unknownFields.WriteTo(ref output);
       }
@@ -3142,6 +3380,9 @@ namespace LiteNet.Proto {
       int size = 0;
       if (Ok != false) {
         size += 1 + 1;
+      }
+      if (Reason.Length != 0) {
+        size += 1 + pb::CodedOutputStream.ComputeStringSize(Reason);
       }
       if (snapshot_ != null) {
         size += 1 + pb::CodedOutputStream.ComputeMessageSize(Snapshot);
@@ -3161,6 +3402,9 @@ namespace LiteNet.Proto {
       }
       if (other.Ok != false) {
         Ok = other.Ok;
+      }
+      if (other.Reason.Length != 0) {
+        Reason = other.Reason;
       }
       if (other.snapshot_ != null) {
         if (snapshot_ == null) {
@@ -3203,6 +3447,10 @@ namespace LiteNet.Proto {
             history_.AddEntriesFrom(input, _repeated_history_codec);
             break;
           }
+          case 34: {
+            Reason = input.ReadString();
+            break;
+          }
         }
       }
     #endif
@@ -3235,6 +3483,10 @@ namespace LiteNet.Proto {
           }
           case 26: {
             history_.AddEntriesFrom(ref input, _repeated_history_codec);
+            break;
+          }
+          case 34: {
+            Reason = input.ReadString();
             break;
           }
         }

@@ -1,3 +1,5 @@
+using System;
+using System.Collections.Generic;
 using LiteNet.Protocol;
 using LiteSim;
 using Xunit;
@@ -5,63 +7,217 @@ using Xunit;
 namespace LiteNet.Tests
 {
     /// <summary>
-    /// 快照载波（`ISnapshotSource` + `FullSnapshotSource` 全量占位）——M10 第二批权威循环的消费面。
-    /// 第三批换增量实现后，本组用例改为"全量/增量两种实现产出同构消息"的对拍。
+    /// 快照载波 / 差分器用例（《M10实施指导》§2.7 / §3 组）。
+    /// 批② 的 FullSnapshotSource 占位已被批③ 的 <see cref="SnapshotDiffer"/> 取代（接口同形、循环零改动），
+    /// 本文件覆盖：首帧全量 / 增量重建 == 权威态 / 静止增量趋零 / 活体变化转全量 / 全量兜底 / AOI / 分配器重建。
     /// </summary>
     public sealed class SnapshotSourceTests
     {
-        private static SimWorldState World(params (float x, float z)[] spawns)
+        private static SimWorldState BuildWorld(out SimMapData map)
         {
-            var s = new SimWorldState();
-            foreach (var (x, z) in spawns)
-                s.Spawn(new EntitySlot { Hp = 100, Pos = new SimVector3(x, 0f, z), Yaw = 0f }, out int _);
+            map = new SimMapData { GroundY = 0f, HalfWidth = 50f, HalfDepth = 50f };
+            map.SpawnPoints[0] = new SimVector3(-10f, 0f, 0f);
+            map.SpawnPoints[1] = new SimVector3(10f, 0f, 0f);
+            map.SpawnPointCount = 2;
+
+            var s = new SimWorldState { RngState = 0x1234UL };
+            s.Spawn(new EntitySlot { Hp = 100, Pos = map.SpawnPoints[0] }, out _);
+            s.Spawn(new EntitySlot { Hp = 100, Pos = map.SpawnPoints[1] }, out _);
             return s;
         }
 
-        [Fact]
-        public void 全量载波_帧号与ack与校验字段齐备()
-        {
-            var s = World((0f, 0f), (5f, 5f));
-            var msg = new FullSnapshotSource().Build(42, s, 7);
+        private static SimWorldState Mirror() => new SimWorldState();
 
-            Assert.Equal(42, msg.Frame);
-            Assert.True(msg.IsFull);
-            Assert.Equal(7, msg.AckInput);
-            Assert.Equal(SimChecksum.ComputeChecksum(s), msg.Checksum);   // checksum 由载波填（客户端和解判定用）
+        private static readonly SimInputFrame[] NoInput = { new SimInputFrame(), new SimInputFrame() };
+
+        /// <summary>构造一帧"某玩家移动"的输入（**必须带 EntityId** —— 缺省 0 会被 TryResolve 判为失效实体而丢弃，曾因此让用例空转）。</summary>
+        private static SimInputFrame[] Move(SimWorldState state, int playerId, float moveX)
+        {
+            var inputs = new SimInputFrame[2];
+            inputs[playerId] = new SimInputFrame { EntityId = state.Entities[playerId].Id, MoveX = moveX, AimX = 1f };
+            return inputs;
         }
 
         [Fact]
-        public void 全量载波_只含活体槽位_且可解回同值()
+        public void 首次构建_必为全量_且槽位数等于活体数()
         {
-            var s = World((0f, 0f), (10f, -3.5f));
-            long deadId = s.Spawn(new EntitySlot { Hp = 1, Pos = new SimVector3(20f, 0f, 0f) }, out int deadSlot);
-            s.Despawn(deadId);                                            // 死体不进快照
+            var state = BuildWorld(out _);
+            var differ = new SnapshotDiffer();
 
-            var msg = new FullSnapshotSource().Build(1, s, 0);
+            Proto.StateSnapshot msg = differ.Build(state.Frame, state, ackInput: 0);
 
-            Assert.Equal(s.AliveCount(), msg.Slots.Count);
-            foreach (var d in msg.Slots)
+            Assert.True(msg.IsFull);
+            Assert.Equal(state.AliveCount(), msg.Slots.Count);
+            Assert.Equal(SimChecksum.ComputeChecksum(state), msg.Checksum);
+        }
+
+        [Fact]
+        public void 增量重建_每帧套用后与权威checksum一致()
+        {
+            var state = BuildWorld(out SimMapData map);
+            var differ = new SnapshotDiffer();
+            var mirror = Mirror();
+            var pump = new FramePump();
+
+            // 镜像：从权威第 1 帧的全量快照起步，之后**只靠收到的快照** (Restore) 追赶；
+            // 权威：用本轮真实输入继续演算。两边都以 1 帧/次的定次节拍推进（FramePump —— 网络对跑形态）
+            pump.Step(1, state, map, Move(state, 0, 1f));
+            SnapshotReassembler.Apply(differ.Build(state.Frame, state, 0), mirror, out _);
+
+            var current = new SimInputFrame[2];
+            foreach (float radius in new[] { 0f, SimConfig.AoiRadius })                  // AOI 关/开两种可见集各验一遍
             {
-                Assert.True(s.IsAlive(d.Slot));
-                SnapshotCodec.FromDelta(d, out int slot, out EntitySlot back);
-                Assert.Equal(d.Slot, slot);
-                Assert.Equal(s.Entities[slot].Id, back.Id);
-                Assert.Equal(s.Entities[slot].Pos.X, back.Pos.X);
-                Assert.Equal(s.Entities[slot].Pos.Z, back.Pos.Z);
-                Assert.Equal(s.Entities[slot].Hp, back.Hp);
+                differ = new SnapshotDiffer();                                           // 重置基线（换可见集）
+                for (int i = 0; i < 8; i++)
+                {
+                    current[0] = default; current[1] = default;
+                    current[i % 2] = new SimInputFrame { EntityId = state.Entities[i % 2].Id, MoveX = i % 3 == 0 ? -1f : 1f, AimX = 1f };
+                    pump.Step(1, state, map, current);
+
+                    Proto.StateSnapshot msg = differ.Build(state.Frame, state, 0,
+                        state.Entities[0].Pos, radius, forceFull: false);
+                    SnapshotReassembler.Apply(msg, mirror, out uint checksum);
+                    Assert.Equal(SimChecksum.ComputeChecksum(state), checksum);          // 权威 checksum 随包下发
+                    Assert.Equal(state.Frame, mirror.Frame);
+
+                    // 镜像末态 == 权威末态：关闭 AOI 时**全部**槽位逐位对上；开启时可见集为子集，
+                    // 已收到的可见槽位必须逐位准确（未收到的不比——那是 AOI 的裁剪语义）
+                    Assert.Equal(state.AliveCount(), mirror.AliveCount());
+                    for (int s = 0; s < SimConfig.MaxEntities; s++)
+                    {
+                        if (!state.IsAlive(s) || !mirror.IsAlive(s)) continue;
+                        Assert.Equal(BitConverter.SingleToInt32Bits(state.Entities[s].Pos.X), BitConverter.SingleToInt32Bits(mirror.Entities[s].Pos.X));
+                        Assert.Equal(BitConverter.SingleToInt32Bits(state.Entities[s].Pos.Z), BitConverter.SingleToInt32Bits(mirror.Entities[s].Pos.Z));
+                        Assert.Equal(BitConverter.SingleToInt32Bits(state.Entities[s].Vel.X), BitConverter.SingleToInt32Bits(mirror.Entities[s].Vel.X));
+                        Assert.Equal(BitConverter.SingleToInt32Bits(state.Entities[s].Yaw), BitConverter.SingleToInt32Bits(mirror.Entities[s].Yaw));
+                        Assert.Equal(state.Entities[s].Hp, mirror.Entities[s].Hp);
+                    }
+                }
             }
         }
 
         [Fact]
-        public void 全量载波_无状态_可多房间共享同一实例()
+        public void AOI裁剪时_未可见槽位不更新但可见槽位逐位准确()
         {
-            var shared = new FullSnapshotSource();
-            var a = World((0f, 0f));
-            var b = World((1f, 1f), (2f, 2f));
+            var state = BuildWorld(out SimMapData map);
+            var differ = new SnapshotDiffer();
+            var mirror = Mirror();
+            var pump = new FramePump();
 
-            Assert.Single(shared.Build(1, a, 0).Slots);
-            Assert.Equal(2, shared.Build(1, b, 0).Slots.Count);
-            Assert.Single(shared.Build(2, a, 1).Slots);                   // 复用同实例互不干扰
+            // 让 p1 远离 p0（AOI 半径 30m 之外），p0 留在原地
+            for (int i = 0; i < 20; i++) pump.Step(1, state, map, Move(state, 1, 1f));
+
+            // 再跑几帧：p1 继续远离（不可见，不发），p0 不动
+            for (int i = 0; i < 5; i++) pump.Step(1, state, map, Move(state, 1, 1f));
+            Proto.StateSnapshot msg = differ.Build(state.Frame, state, 0, state.Entities[0].Pos, SimConfig.AoiRadius, false);
+
+            // 可见槽位（p0）必须准确；整体槽位数 < 活体数（p1 被裁）
+            bool p0Visible = false;
+            for (int i = 0; i < msg.Slots.Count; i++) if (msg.Slots[i].Slot == 0) p0Visible = true;
+            Assert.True(p0Visible, "视点自身必须可见（不漏发）");
+            Assert.True(msg.Slots.Count < state.AliveCount() || msg.IsFull,
+                $"远离的实体应被 AOI 裁掉（slots={msg.Slots.Count} alive={state.AliveCount()} full={msg.IsFull}）");
+
+            // 关闭 AOI 后两人都可见 → 槽位补齐
+            Proto.StateSnapshot all = differ.Build(state.Frame, state, 0, state.Entities[0].Pos, 0f, true);
+            Assert.Equal(state.AliveCount(), all.Slots.Count);
+        }
+
+        [Fact]
+        public void 静止场景_增量趋零()
+        {
+            var state = BuildWorld(out SimMapData map);
+            var differ = new SnapshotDiffer();
+            var pump = new FramePump();
+
+            differ.Build(state.Frame, state, 0);                  // 首帧全量（建立基线）
+
+            for (int i = 0; i < 3; i++)                           // 重力到贴地静止（每步都广播，模拟真实的每帧广播）
+            {
+                pump.Step(1, state, map, NoInput);
+                differ.Build(state.Frame, state, 0);
+            }
+            Assert.Equal(0, differ.LastDeltaCount);               // 完全静止：零槽位
+            Assert.Equal(3, state.Frame);                         // 帧号连续推进（差分器不改帧号）
+
+            var both = new SimInputFrame[2];                      // 两人反向移动 → 两个槽位都变化
+            both[0] = new SimInputFrame { EntityId = state.Entities[0].Id, MoveX = 1f, AimX = 1f };
+            both[1] = new SimInputFrame { EntityId = state.Entities[1].Id, MoveX = -1f, AimX = 1f };
+            pump.Step(1, state, map, both);
+            differ.Build(state.Frame, state, 0);
+            Assert.Equal(2, differ.LastDeltaCount);
+        }
+
+        [Fact]
+        public void 活体集合变化_自动转全量()
+        {
+            var state = BuildWorld(out SimMapData map);
+            var differ = new SnapshotDiffer();
+            var pump = new FramePump();
+            differ.Build(state.Frame, state, 0);
+            Assert.Equal(2, state.AliveCount());
+
+            state.Despawn(state.Entities[1].Id);                  // 缺席 = 未变化 的语义无法表达"死了" → 必须全量
+            pump.Step(1, state, map, NoInput);
+            Proto.StateSnapshot msg = differ.Build(state.Frame, state, 0);
+            Assert.True(msg.IsFull, "活体集合变化后必须转全量");
+            Assert.Single(msg.Slots);
+
+            state.Spawn(new EntitySlot { Hp = 50, Pos = new SimVector3(3f, 0f, 3f) }, out _);
+            pump.Step(1, state, map, NoInput);
+            msg = differ.Build(state.Frame, state, 0);
+            Assert.True(msg.IsFull, "新生成实体后必须转全量");
+            Assert.Equal(2, msg.Slots.Count);
+        }
+
+        [Fact]
+        public void 全量兜底判据_ack落后与周期()
+        {
+            var state = BuildWorld(out _);
+            var differ = new SnapshotDiffer();
+            Proto.StateSnapshot msg = differ.Build(state.Frame, state, ackInput: 1);
+            Assert.Equal(1, msg.AckInput);
+
+            Assert.True(differ.NeedsFull(differ.LastBroadcastFrame - ProtocolConstants.FullResendAckLagFrames - 1),
+                "ack 落后超阈值应触发全量");
+            Assert.False(differ.NeedsFull(differ.LastBroadcastFrame - 1), "ack 紧跟不应触发全量");
+        }
+
+        [Fact]
+        public void AOI_关闭全可见_开启按格裁剪且自己必在()
+        {
+            var state = BuildWorld(out _);
+            state.Spawn(new EntitySlot { Hp = 100, Pos = new SimVector3(45f, 0f, 45f) }, out int farSlot);
+
+            var visible = new List<int>();
+            var aoi = new AoiFilter();
+            SimVector3 viewer = state.Entities[0].Pos;
+
+            aoi.CollectVisible(in state, viewer, radius: 0f, visible);              // 0 = 关闭 AOI（全图广播）
+            Assert.Equal(state.AliveCount(), visible.Count);
+
+            visible.Clear();
+            aoi.CollectVisible(in state, viewer, radius: SimConfig.AoiRadius, visible);
+            Assert.Contains(0, visible);                                           // 自己必在
+            Assert.DoesNotContain(farSlot, visible);                               // 45m 外（半径 30m）不可见
+            Assert.True(visible.Count < state.AliveCount());
+
+            // 与全量的槽位集合是**包含关系**（验收口径：AOI 只裁剪广播，不改判定）
+            Assert.Equal(state.AliveCount(), visible.Count + 1);
+        }
+
+        [Fact]
+        public void 快照重建后_镜像分配器不与权威Id撞车()
+        {
+            var state = BuildWorld(out _);
+            var differ = new SnapshotDiffer();
+            var mirror = Mirror();
+
+            SnapshotReassembler.Apply(differ.Build(state.Frame, state, 0), mirror, out _);
+
+            long newId = mirror.Spawn(new EntitySlot { Hp = 10, Pos = new SimVector3(1f, 0f, 1f) }, out _);
+            Assert.NotEqual(state.Entities[0].Id, newId);          // 版本表由 Id>>16 重建 → 不撞既有实体
+            Assert.NotEqual(state.Entities[1].Id, newId);
         }
     }
 }

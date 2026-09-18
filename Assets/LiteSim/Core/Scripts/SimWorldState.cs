@@ -161,5 +161,24 @@ namespace LiteSim
         {
             return new EntityIt(this);
         }
+
+        /// <summary>
+        /// 外部重建态（客户端快照和解）的**分配器状态修复**：把位图/槽位设好后调用。
+        /// 两件事：① 逐活体槽位把 <c>_versions</c> 从 <c>Id &gt;&gt; 16</c> 反推回来——
+        /// 否则客户端从快照重建后本地版本表归零，新 Spawn 会分配出与服务器既有实体**同 Id** 的实体（撞车 = 分叉）；
+        /// ② 空闲游标复位到"最高已用槽 + 1"（避免从 0 起扫到已用槽）。
+        /// 分配器状态不进 checksum（§3.6 非逻辑字段），故本操作不破坏校验值。
+        /// </summary>
+        public void SetAllocatorIdleSlot(int idleSlot)
+        {
+            for (int i = 0; i < SimConfig.MaxEntities; i++)
+            {
+                if (IsAlive(i)) _versions[i] = (ulong)Entities[i].Id >> 16;
+                else _versions[i] = 0UL;
+            }
+
+            if (idleSlot < 0 || idleSlot >= SimConfig.MaxEntities) idleSlot = 0;
+            _nextFree = idleSlot;
+        }
     }
 }

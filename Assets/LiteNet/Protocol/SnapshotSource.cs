@@ -3,29 +3,35 @@ using LiteSim;
 namespace LiteNet.Protocol
 {
     /// <summary>
-    /// **快照载波**（《M10实施指导》决策 7 的解耦点，2026-09-17 前置）：权威循环只管"取一份待广播的快照"，
-    /// **不关心它是全量还是增量**。
+    /// 服务器广播状态（《M10实施指导》决策 7；前身是批② 的 <see cref="ISnapshotSource"/>）。
     ///
-    /// 为什么先抽这个口：第二批（RoomServer 权威循环）要验收"服务器能独立跑 60Hz 权威局"，而增量差分
-    /// `SnapshotDiffer` 属第三批 → 第二批用 <see cref="FullSnapshotSource"/> 全量占位即可跑通并验收；
-    /// 第三批把实现换成 SnapshotDiffer（增量 + 全量兜底 + ack 触发），**循环零改动**。
+    /// 两段式（多客户端必需）：<see cref="BeginFrame"/> 每广播帧一次（算差分、推进基线），
+    /// <see cref="BuildFor"/> 每客户端一次（纯读，按各自 AOI 视点过滤）——见 <see cref="SnapshotDiffer"/> 注释。
     /// </summary>
     public interface ISnapshotSource
     {
-        /// <summary>
-        /// 产出第 <paramref name="frame"/> 帧待广播的快照（含 `frameNo` / `is_full` / `checksum` / `ackInput`）。
-        /// </summary>
-        Proto.StateSnapshot Build(int frame, SimWorldState state, int ackInput);
-    }
+        /// <summary>每广播帧一次：算本帧变化集 / 判定全量 / 推进基线。<paramref name="forceFull"/> = 整帧强制全量。</summary>
+        void BeginFrame(int frame, SimWorldState state, bool forceFull = false);
 
-    /// <summary>
-    /// 全量占位实现（每帧全量）：第二批权威循环用。
-    /// 第三批换增量后本类**保留**——它是"定期全量兜底 / ack 落后兜底"的现成复用件（决策 7）。
-    /// 无状态 → 可被多房间共享同一实例。
-    /// </summary>
-    public sealed class FullSnapshotSource : ISnapshotSource
-    {
-        public Proto.StateSnapshot Build(int frame, SimWorldState state, int ackInput)
-            => SnapshotCodec.PackFull(frame, state, ackInput);
+        /// <summary>每客户端一次：取该客户端可见的槽位（全量帧 = 全部可见活体；增量帧 = 可见 ∩ 变化集）。</summary>
+        Proto.StateSnapshot BuildFor(int frame, SimWorldState state, int ackInput, SimVector3 viewPos, float aoiRadius);
+
+        /// <summary>便捷组合（单客户端/测试）：BeginFrame + BuildFor。</summary>
+        Proto.StateSnapshot Build(int frame, SimWorldState state, int ackInput, SimVector3 viewPos, float aoiRadius, bool forceFull = false);
+
+        /// <summary>便捷组合（默认视点：AOI 关/开按 <see cref="SimConfig.AoiRadius"/>）。</summary>
+        Proto.StateSnapshot Build(int frame, SimWorldState state, int ackInput);
+
+        /// <summary>该 ack 的客户端是否应改发全量兜底（ack 落后 / 距上次全量过久）。</summary>
+        bool NeedsFull(int clientAckSnapshot);
+
+        /// <summary>最近一次构建/广播的帧号（-1 = 尚未构建）。诊断与用例断言用。</summary>
+        int LastBroadcastFrame { get; }
+
+        /// <summary>距上次全量的帧数（周期兜底判据；无全量史 = int.MaxValue）。</summary>
+        int FramesSinceFull { get; }
+
+        /// <summary>本帧是否被判为全量帧（<see cref="BeginFrame"/> 之后有效）。</summary>
+        bool FrameIsFull { get; }
     }
 }

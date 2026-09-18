@@ -15,6 +15,41 @@ namespace LiteSim
         private const uint FnvOffset = 2166136261u;
         private const uint FnvPrime = 16777619u;
 
+        /// <summary>
+        /// 与 <see cref="ComputeChecksum"/> **同规则、不覆盖 Frame** 的变体：供"跨实例同步位"判定使用
+        /// （M10 批③ 差分器的全局状态探针与用例断言：两个同种子同输入的世界应逐位同步，
+        /// 但各跑各的帧号——拿含 Frame 的 checksum 比会永远不等，实测踩过）。
+        /// 逐字段清单与 <see cref="ComputeChecksum"/> 必须保持一致（漏一个 = 同步判定漏检）。
+        /// </summary>
+        public static uint ComputeStateChecksum(in SimWorldState s)
+        {
+            uint h = FnvOffset;
+            h = MixUInt64(h, s.RngState);
+
+            for (int i = 0; i < SimConfig.MaxEntities; i++)
+            {
+                ref EntitySlot e = ref s.Entities[i];
+                h = MixInt64(h, e.Id);
+                h = MixFloat(h, e.Pos.X);
+                h = MixFloat(h, e.Pos.Y);
+                h = MixFloat(h, e.Pos.Z);
+                h = MixFloat(h, e.Vel.X);
+                h = MixFloat(h, e.Vel.Y);
+                h = MixFloat(h, e.Vel.Z);
+                h = MixFloat(h, e.Yaw);
+                h = MixInt32(h, e.Hp);
+                h = MixUInt32(h, e.Flags);
+            }
+
+            byte[] globals = s.Globals;
+            for (int i = 0; i < globals.Length; i++) h = MixByte(h, globals[i]);
+
+            byte[] custom = s.CustomData;
+            for (int i = 0; i < custom.Length; i++) h = MixByte(h, custom[i]);
+
+            return h;
+        }
+
         public static uint ComputeChecksum(in SimWorldState s)
         {
             uint h = FnvOffset;

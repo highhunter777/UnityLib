@@ -27,7 +27,10 @@ TARGETS = [
 ]
 OUT_FILE = os.path.join(ROOT, 'Assets', 'LiteNet', 'Protocol', 'BuildHash.g.cs')
 SELF_NAME = 'BuildHash.g.cs'
-SKIP_DIRS = {'bin', 'obj', '.dotnet', '__pycache__'}
+SKIP_DIRS = {'bin', 'obj', '.dotnet', '__pycache__', 'Editor'}
+# Editor 目录排除（2026-09-18 批③ 修正）：LiteSim.Core.csproj 的 Compile 通配带 Exclude="Scripts/Editor/**"
+# ——编辑器脚本不在客户端/服务器共同编译的源集里，喂进 hash 会让"hash 变了但两端行为没变"
+# （例如给菜单加一行注释 → 所有客户端与服务器握手上全部拒绝进房）。hash 只覆盖**共同源集**。
 
 
 def collect():

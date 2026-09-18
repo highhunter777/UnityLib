@@ -148,5 +148,6 @@ CODELY.md
 
 # ===== 构建/诊断产物与 agent 临时件（不入库）=====
 msbuild_preprocessed.xml
+__pycache__/
 AgentScripts/
 Tests/LiteNet.Tests/TempProtoReflection.cs

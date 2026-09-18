@@ -5,6 +5,10 @@ namespace LiteSim
     /// 对活体做圆柱求交（半径 + y 区间），按距离取最近（并列取低槽位——遍历顺序恒定）；
     /// 命中 → Cmds.Write(Damage)；开火/命中 → Events.Write(Fire/Hit)。
     /// 本系统是 M8 唯一消费 RngState 的系统（#10：确定性审计写在签名上——伤害浮动 ±1）。
+    ///
+    /// **服务器回溯（M10 批③）**：LagCompensator 会把本系统**单独**跑在历史帧状态上（不 Step），
+    /// 因此本系统必须满足两条：① 不改 Frame/时序；② 只读输入 + 写 Cmds/Events/RngState。
+    /// 回调方负责还原 RngState（回溯判定不该消费权威随机数）。
     /// </summary>
     public static class ShootingSystem
     {

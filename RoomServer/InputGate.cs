@@ -1,5 +1,4 @@
 ﻿using System.Collections.Generic;
-using System.Collections.Generic;
 using LiteNet;
 using LiteNet.Protocol;
 using LiteNet.Proto;
@@ -31,6 +30,10 @@ namespace RoomServer
         public long DroppedDuplicateFrame;
         public long DroppedOutOfRange;
         public long DroppedAckSnapshot;
+        public long DroppedIllegalButtons;
+
+        /// <summary>已定义按键位掩码：未定义位一律丢弃（客户端不能凭上报任意位影响判定；服务器内部位 ClientUnreportable 见 <see cref="SimInputFrame.ButtonFireFlag"/>）。</summary>
+        public const uint AllowedButtons = SimInputFrame.ButtonFire;
 
         private readonly int _playerCount;
         /// <summary>预存输入：按帧号索引（服务器帧推进到 f 时消费 f 的预存输入；缺席 = 空输入沿用）。</summary>
@@ -73,6 +76,13 @@ namespace RoomServer
                 return false;
             }
 
+            // 按键位白名单：未定义位（含服务器内部位的伪造上报）一律丢弃——否则伪造 ButtonFireFlag 可绕过回溯补判语义
+            if ((wire.Buttons & ~AllowedButtons) != 0u)
+            {
+                DroppedIllegalButtons++;
+                return false;
+            }
+
             // 同帧去重：每帧每玩家至多 1 条（首条生效）
             if (frame <= _lastAcceptedFrame[playerId])
             {
@@ -104,5 +114,13 @@ namespace RoomServer
             input = default;
             return false;
         }
+
+        /// <summary>
+        /// 该玩家最近被接受的输入帧号（作为该客户端已确认的输入下限，随快照 ack_input 下发；-1 = 尚无）。
+        /// 口径说明：这是"最新输入帧"而非"已消费帧"——服务器广播 ack_input 的用途是让客户端知道
+        /// **它的输入已到达服务器**，回滚判定以真实输入帧号为准，不依赖此值。
+        /// </summary>
+        public int LastAcceptedFrame(int playerId) =>
+            playerId >= 0 && playerId < _playerCount ? _lastAcceptedFrame[playerId] : -1;
     }
 }

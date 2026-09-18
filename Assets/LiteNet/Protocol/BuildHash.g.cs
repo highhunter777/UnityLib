@@ -12,6 +12,6 @@ namespace LiteNet
     public static class BuildHash
     {
         /// <summary>当前构建的版本 hash（16 位小写 hex）。</summary>
-        public const string Value = "3be5647d8c25bdba";
+        public const string Value = "52d4af96a77f7c40";
     }
 }

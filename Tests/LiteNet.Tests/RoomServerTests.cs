@@ -198,7 +198,5 @@ namespace LiteNet.Tests
             Pump(200);
             Assert.True(_host.Room.AuthSim.Frame > frameBefore, "垃圾输入后权威循环应继续推进");
         }
-
-        public void MarkDisposedForCoverage() { }
     }
 }

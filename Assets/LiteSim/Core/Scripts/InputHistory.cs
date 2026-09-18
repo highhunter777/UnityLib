@@ -35,12 +35,19 @@ namespace LiteSim
             }
         }
 
-        /// <summary>记录一帧输入（预测或真实；同帧重复 Record = 覆写）。</summary>
+        /// <summary>记录一帧输入（预测或真实；同帧重复 Record = 覆写）。<paramref name="predicted"/> 为 null = 全真实位（服务器侧无预测）。</summary>
         public void Record(int frame, SimInputFrame[] inputs, bool[] predicted)
         {
             int slot = frame % _capacity;
             Array.Copy(inputs, _inputs[slot], _playerCount);
-            Array.Copy(predicted, _predicted[slot], _playerCount);
+            if (predicted == null)
+            {
+                for (int i = 0; i < _playerCount; i++) _predicted[slot][i] = false;
+            }
+            else
+            {
+                Array.Copy(predicted, _predicted[slot], _playerCount);
+            }
             _frameIds[slot] = frame;
         }
 

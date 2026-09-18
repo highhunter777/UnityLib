@@ -48,12 +48,29 @@ message StateSnapshot {
 // ===== 信令（Reliable）=====
 
 message JoinRequest       { string room_id = 1; string token = 2; string build_hash = 3; }
-message JoinAck           { int32 player_id = 1; repeated int32 members = 2; }
-message StartGame         { int64 seed = 1; uint32 config_hash = 2; }
+// 字段 3~6 为批③ 追加（只增不改：旧端忽略未知字段，wire 兼容；无重编号）
+message JoinAck           {
+  int32 player_id = 1;
+  repeated int32 members = 2;
+  string reconnect_token = 3;           // E3 一次性重连票据（进房成功才发；断线后凭它换权威快照）
+  int32 reconnect_window_seconds = 4;   // 票据有效期（秒）
+  int32 snapshot_hz = 5;                // 服务器当前快照频率（客户端插值/预测参数自举，防两端常量漂移）
+  int32 tick_rate = 6;                  // 服务器逻辑帧率
+}
+message StartGame         {
+  int64 seed = 1;
+  uint32 config_hash = 2;
+  int32 frame = 3;                      // 开局时的权威帧号（批③ 追加；客户端据此锚定本地帧轴）
+}
 message Leave            { }
 message Heartbeat        { int64 client_time = 1; }  // 连接保活由 kcp2k 内建 Ping 承担；此包留给 RTT 观测，M10 不强制发送
 message ReconnectRequest { string one_time_token = 1; }   // E3：一次性票据
-message ReconnectResponse { bool ok = 1; StateSnapshot snapshot = 2; repeated InputMessage history = 3; }  // §5.6
+message ReconnectResponse {
+  bool ok = 1;
+  string reason = 4;                        // 失败原因（批③ 追加）
+  StateSnapshot snapshot = 2;               // 权威快照（首选路径 §5.6）
+  repeated InputMessage history = 3;        // 后续输入历史（客户端据此在快照帧上续跑，无需重放全史）
+}
 
 // ===== C→S 和解上报（Unreliable；Ops 汇总和解率）=====
 

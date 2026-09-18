@@ -13,6 +13,14 @@ namespace LiteSim
         /// <summary>开火位（M8）；后续键位（跳跃/技能）以追加位扩展，不破坏既有布局。</summary>
         public const uint ButtonFire = 1u << 0;
 
+        /// <summary>
+        /// **服务器回溯专用**：本槽输入表示"该实体在回溯帧上补判一次开火"（《M10实施指导》决策 8）。
+        /// 不是客户端能上报的按键位——传输层把 <c>Buttons</c> 限制在已定义的玩家按键集合（见 InputGate），
+        /// 服务器内部构造的补判输入才带此位；<see cref="ShootingSystem"/> 据此跳过移动向量归一化、
+        /// 并跳过"武器冷却/弹药"类前置（M8 无此状态，先落下契约以免 M11 加武器系统时漏改）。
+        /// </summary>
+        public const uint ButtonFireFlag = 1u << 31;
+
         /// <summary>玩家实体 Id（消费方经 TryResolve 定位；失效 = 目标已死，本帧输入丢弃）。</summary>
         public long EntityId;
 

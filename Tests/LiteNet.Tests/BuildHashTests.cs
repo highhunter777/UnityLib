@@ -21,7 +21,7 @@ namespace LiteNet.Tests
             "Assets/LiteNet/Protocol",
         };
 
-        private static readonly string[] SkipDirs = { "bin", "obj", ".dotnet", "__pycache__" };
+        private static readonly string[] SkipDirs = { "bin", "obj", ".dotnet", "__pycache__", "Editor" };
         private const string SelfName = "BuildHash.g.cs";
 
         [Fact]
