@@ -1,0 +1,47 @@
+using System.Diagnostics;
+
+namespace RoomServer
+{
+    /// <summary>
+    /// 会话（《状态同步实施方案》§4.5 SessionManager 行）：一条 KCP 连接的记账。
+    /// 保活由 kcp2k 内建 Ping/Timeout 承担（超时 → OnDisconnected → 本表标记 Disconnected）；
+    /// E3 的连接 cookie 亦由 kcp2k V1.41 内建握手承担（抗 UDP 放大——白得，记录于实施记录）。
+    /// E1 背压水位为骨架字段：批③快照广播按它降档，本批先计数。
+    /// </summary>
+    public sealed class Session
+    {
+        /// <summary>传输层连接 Id（kcp2k connectionId）。</summary>
+        public readonly int ConnectionId;
+
+        /// <summary>进房后分配的玩家号（房间内从 0 递增；未进房 = -1）。</summary>
+        public int PlayerId = -1;
+
+        /// <summary>所属房间（未进房 = null）。</summary>
+        public Room Room;
+
+        /// <summary>客户端上报的构建哈希（Join 时校验，不符拒绝进房——版本红线 §4.5-5）。</summary>
+        public string BuildHash;
+
+        /// <summary>最近一次收到该会话任何包的 monotonic 毫秒（诊断用；超时踢除走 kcp2k）。</summary>
+        public long LastSeenMs;
+
+        /// <summary>断线标记（掉线不停帧：权威循环对断线者沿用空输入 §4.5-2）。</summary>
+        public bool Disconnected;
+
+        /// <summary>E1 背压水位（待发快照/信令字节数）——批③按此降档；本批为计数骨架。</summary>
+        public long SendQueueBytes;
+
+        /// <summary>E1 降级计数（水位超限被跳过/降档的发送次数——Ops 观测）。</summary>
+        public int BackpressureDrops;
+
+        public Session(int connectionId, long nowMs)
+        {
+            ConnectionId = connectionId;
+            LastSeenMs = nowMs;
+        }
+
+        public void Touch(long nowMs) => LastSeenMs = nowMs;
+
+        private static long Now() => Stopwatch.GetTimestamp() * 1000 / Stopwatch.Frequency;
+    }
+}
