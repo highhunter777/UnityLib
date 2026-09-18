@@ -20,23 +20,20 @@ namespace LiteGame.Tests.EditMode
         }
 
         /// <summary>
-        /// 运算链（10k 步）跨运行时**不一致已被实测**（Unity/Mono vs .NET 8：3683559206 vs 2896875742，
-        /// 116 条逐值行全同）。此用例只**记录**两侧值与量级，不判失败——它是 M10 和解率的输入数据，
-        /// 定案（接受底噪 / 自研 sqrt 消除源头）见《M10实施指导》§7 与实施记录。
+        /// 运算链（10k 步）跨运行时**必须逐位一致**——B 方案（自研 software sqrt）的兑现点。
+        ///
+        /// 历史：2026-09-18 曾实测到不一致（.NET 2896875742 / Unity 3683559206），
+        /// 根因是 BCL `Math.Sqrt` 在 Mono 上非正确舍入、被长链放大；改为自研 software sqrt
+        /// （纯整数/位运算 + 正确舍入）后，两侧一致。此用例自此为**硬判据**：
+        /// 一旦回归（例如有人绕过 `SimMath.Sqrt` 直接用 BCL），它立刻红。
         /// </summary>
         [Test]
-        public void IEEE运算链_记录跨运行时差异_不判失败()
+        public void IEEE运算链_跨运行时逐位一致()
         {
             var (expected, unity, same) = IeeeBaselineChecker.ChainComparison();
-            TestContext.WriteLine($"[Chain] .NET={expected} Unity={unity} same={same}");
-            if (!same)
-            {
-                uint delta = unity > expected ? unity - expected : expected - unity;
-                TestContext.WriteLine(
-                    $"[Chain] 跨运行时 ulp 底噪已记录：Δ={delta}（10k 步累积；逐值行全同）" +
-                    "——按 v3 定位属预测/和解质量项，M10 对跑实测后定案。");
-            }
-            Assert.Pass($"Chain 记录完成（same={same}）");
+            Assert.IsTrue(same,
+                $"运算链跨运行时不一致：.NET={expected} / Unity={unity}——" +
+                "检查是否有人绕过 SimMath.Sqrt 用了 BCL Math.Sqrt（B 方案红线）");
         }
     }
 }
