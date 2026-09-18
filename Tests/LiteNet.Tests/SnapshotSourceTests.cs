@@ -59,9 +59,9 @@ namespace LiteNet.Tests
             var a = World((0f, 0f));
             var b = World((1f, 1f), (2f, 2f));
 
-            Assert.Equal(1, shared.Build(1, a, 0).Slots.Count);
+            Assert.Single(shared.Build(1, a, 0).Slots);
             Assert.Equal(2, shared.Build(1, b, 0).Slots.Count);
-            Assert.Equal(1, shared.Build(2, a, 1).Slots.Count);           // 复用同实例互不干扰
+            Assert.Single(shared.Build(2, a, 1).Slots);                   // 复用同实例互不干扰
         }
     }
 }
