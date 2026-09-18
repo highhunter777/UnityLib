@@ -33,7 +33,7 @@ Assets/LiteGame/UI/
 
 **每模板的结构与标记**（绑定双路径 A 的落点）：
 - 根节点：挂 `UIWidget` 子类 + `BindRoot`（类名 / 命名空间 / 输出目录）
-- 需要暴露的子控件：挂 `BindNode` 标记（名字 = 绑定名，PascalCase；类型 = 子控件组件类型）→ 索引与绑定类**一键生成**（BindCodeGen §4.6，零手工查找）
+- 需要暴露的子控件：挂 `BindNode` 标记（名字 = 绑定名，PascalCase；类型 = 子控件组件类型）→ 索引与绑定类**一键生成**（LiteCodeGen §4.6，零手工查找）
 
 **层级与命名约定**：
 - 结构：`Root(UIWidget) → Bg / Content / Interaction`；三层缺省，特殊控件可加层
