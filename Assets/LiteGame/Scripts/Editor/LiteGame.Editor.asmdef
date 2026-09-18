@@ -10,8 +10,8 @@
 		"xLuaMain",
 		"YooAsset",
 		"YooAsset.Editor",
-		"BindCodeGen.Runtime",
-		"BindCodeGen.Editor",
+		"LiteCodeGen.Runtime",
+		"LiteCodeGen.Editor",
 		"Unity.TextMeshPro"
 	],
 	"includePlatforms": [

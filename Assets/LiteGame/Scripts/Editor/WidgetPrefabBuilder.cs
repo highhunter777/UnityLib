@@ -770,7 +770,7 @@ namespace LiteGame.Editor
         /// <summary>模板根的空名 BindNode：作为"可暴露位"提示（命名归界面作者，避免多实例重名）。</summary>
         private static void Expose(GameObject root, string comment)
         {
-            var node = root.AddComponent<BindCodeGen.BindNode>();
+            var node = root.AddComponent<LiteCodeGen.BindNode>();
             node.Comment = comment;
         }
 

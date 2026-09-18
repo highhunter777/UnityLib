@@ -1,17 +1,17 @@
 //------------------------------------------------------------
-// BindCodeGen - 独立版绑定代码生成
+// LiteCodeGen - 独立版绑定代码生成
 // 思路源自 QFramework CodeGenKit/UIKit (MIT License, Copyright (c) 2016~2025 liangxiegame)
 // 本文件不依赖任何第三方框架,仅依赖 UnityEngine。
 //------------------------------------------------------------
 using UnityEngine;
 
-namespace BindCodeGen
+namespace LiteCodeGen
 {
     /// <summary>
     /// 挂在需要生成引用的节点上,用于标记"该节点要被生成进代码里"。
     /// 会自动检测节点上的组件类型(优先级清单对齐 QFramework AbstractBind)。
     /// </summary>
-    [AddComponentMenu("BindCodeGen/BindNode 标记")]
+    [AddComponentMenu("LiteCodeGen/BindNode 标记")]
     public class BindNode : MonoBehaviour
     {
         /// <summary>生成到代码里的备注(可选)</summary>

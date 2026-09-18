@@ -1,5 +1,5 @@
 //------------------------------------------------------------
-// BindCodeGen - 独立版绑定代码生成
+// LiteCodeGen - 独立版绑定代码生成
 //------------------------------------------------------------
 using System;
 using System.Collections.Generic;
@@ -7,7 +7,7 @@ using UnityEditor;
 using UnityEngine;
 using Object = UnityEngine.Object;
 
-namespace BindCodeGen.EditorTools
+namespace LiteCodeGen.EditorTools
 {
     /// <summary>
     /// 把根节点下所有 BindNode 标记解析出的引用,写回目标组件的序列化字段。

@@ -13,7 +13,7 @@ namespace LiteGame
         {
             if (root == null) throw new ArgumentNullException(nameof(root));
             var dict = new Dictionary<string, Component>(16);
-            var nodes = root.GetComponentsInChildren<BindCodeGen.BindNode>(true);
+            var nodes = root.GetComponentsInChildren<LiteCodeGen.BindNode>(true);
             foreach (var node in nodes)
             {
                 var name = node.BindName;

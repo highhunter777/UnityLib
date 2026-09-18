@@ -1,6 +1,6 @@
 {
-    "name": "BindCodeGen.Runtime",
-    "rootNamespace": "BindCodeGen",
+    "name": "LiteCodeGen.Runtime",
+    "rootNamespace": "LiteCodeGen",
     "references": [],
     "includePlatforms": [],
     "excludePlatforms": [],

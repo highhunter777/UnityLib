@@ -1,5 +1,5 @@
 //------------------------------------------------------------
-// BindCodeGen - 独立版绑定代码生成
+// LiteCodeGen - 独立版绑定代码生成
 //------------------------------------------------------------
 using System;
 using System.Collections.Generic;
@@ -9,7 +9,7 @@ using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
-namespace BindCodeGen.EditorTools
+namespace LiteCodeGen.EditorTools
 {
     /// <summary>
     /// "生成代码→等待编译→自动把脚本挂到根并回填引用"的待处理队列。
@@ -17,7 +17,7 @@ namespace BindCodeGen.EditorTools
     /// </summary>
     public static class BindPostCompile
     {
-        private const string EditorPrefsKey = "BindCodeGen.BindPendingQueue.v1";
+        private const string EditorPrefsKey = "LiteCodeGen.BindPendingQueue.v1";
 
         public static void AddPrefab(string prefabPath, string ns, string className, string[] ancestorNames)
         {
@@ -78,7 +78,7 @@ namespace BindCodeGen.EditorTools
                 }
                 catch (Exception e)
                 {
-                    Debug.LogError("[BindCodeGen] 回填失败 " + item.ClassName + " :\n" + e);
+                    Debug.LogError("[LiteCodeGen] 回填失败 " + item.ClassName + " :\n" + e);
                 }
             }
         }
@@ -87,14 +87,14 @@ namespace BindCodeGen.EditorTools
         {
             if (string.IsNullOrEmpty(item.PrefabPath))
             {
-                Debug.LogError("[BindCodeGen] prefab 路径为空,无法回填 " + item.ClassName);
+                Debug.LogError("[LiteCodeGen] prefab 路径为空,无法回填 " + item.ClassName);
                 return;
             }
 
             var contentsRoot = PrefabUtility.LoadPrefabContents(item.PrefabPath);
             if (contentsRoot == null)
             {
-                Debug.LogError("[BindCodeGen] 加载 prefab 失败:" + item.PrefabPath);
+                Debug.LogError("[LiteCodeGen] 加载 prefab 失败:" + item.PrefabPath);
                 return;
             }
 
@@ -103,14 +103,14 @@ namespace BindCodeGen.EditorTools
                 var targetRoot = ResolveTarget(contentsRoot.transform, item);
                 if (targetRoot == null)
                 {
-                    Debug.LogError("[BindCodeGen] 在 prefab '" + item.PrefabPath + "' 中找不到目标根节点,请手动点击『回填引用』。");
+                    Debug.LogError("[LiteCodeGen] 在 prefab '" + item.PrefabPath + "' 中找不到目标根节点,请手动点击『回填引用』。");
                     return;
                 }
 
                 string error;
                 if (!BindSerializer.TryFill(targetRoot.gameObject, item.Namespace, item.ClassName, out error))
                 {
-                    Debug.LogWarning("[BindCodeGen] " + error);
+                    Debug.LogWarning("[LiteCodeGen] " + error);
                 }
             }
             finally
@@ -120,7 +120,7 @@ namespace BindCodeGen.EditorTools
                 PrefabUtility.UnloadPrefabContents(contentsRoot);
             }
 
-            Debug.Log("[BindCodeGen] 已完成 '" + item.ClassName + "' 生成与回填(Prefab)");
+            Debug.Log("[LiteCodeGen] 已完成 '" + item.ClassName + "' 生成与回填(Prefab)");
         }
 
         private static void ProcessScene(BindPendingItem item)
@@ -152,7 +152,7 @@ namespace BindCodeGen.EditorTools
 
             if (candidates == null || candidates.Count == 0)
             {
-                Debug.LogWarning("[BindCodeGen] 找不到场景对象 '" + item.ClassName + "',请选中根节点手动点击『回填引用』。");
+                Debug.LogWarning("[LiteCodeGen] 找不到场景对象 '" + item.ClassName + "',请选中根节点手动点击『回填引用』。");
                 return;
             }
 
@@ -175,7 +175,7 @@ namespace BindCodeGen.EditorTools
 
                 if (target == null)
                 {
-                    Debug.LogWarning("[BindCodeGen] 场景存在多个名为 '" + item.ClassName + "' 的根节点,无法自动回填,请手动选中点击『回填引用』。");
+                    Debug.LogWarning("[LiteCodeGen] 场景存在多个名为 '" + item.ClassName + "' 的根节点,无法自动回填,请手动选中点击『回填引用』。");
                     return;
                 }
             }
@@ -183,11 +183,11 @@ namespace BindCodeGen.EditorTools
             string error;
             if (!BindSerializer.TryFill(target.gameObject, item.Namespace, item.ClassName, out error))
             {
-                Debug.LogWarning("[BindCodeGen] " + error);
+                Debug.LogWarning("[LiteCodeGen] " + error);
             }
 
             EditorSceneManager.MarkSceneDirty(target.gameObject.scene);
-            Debug.Log("[BindCodeGen] 已完成 '" + item.ClassName + "' 生成与回填(Scene)");
+            Debug.Log("[LiteCodeGen] 已完成 '" + item.ClassName + "' 生成与回填(Scene)");
         }
 
         private static void CollectCandidates(Transform node, string ns, string className, List<Transform> candidates)

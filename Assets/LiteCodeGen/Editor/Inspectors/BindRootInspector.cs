@@ -1,10 +1,10 @@
 //------------------------------------------------------------
-// BindCodeGen - 独立版绑定代码生成
+// LiteCodeGen - 独立版绑定代码生成
 //------------------------------------------------------------
 using UnityEditor;
 using UnityEngine;
 
-namespace BindCodeGen.EditorTools
+namespace LiteCodeGen.EditorTools
 {
     [CustomEditor(typeof(BindRoot))]
     public sealed class BindRootInspector : Editor
@@ -86,7 +86,7 @@ namespace BindCodeGen.EditorTools
 
             if (string.IsNullOrEmpty(className))
             {
-                Debug.LogWarning("[BindCodeGen] 还没生成过代码(LastGeneratedClassName 为空),请先点『生成代码』。");
+                Debug.LogWarning("[LiteCodeGen] 还没生成过代码(LastGeneratedClassName 为空),请先点『生成代码』。");
                 return;
             }
 
@@ -107,11 +107,11 @@ namespace BindCodeGen.EditorTools
 
             if (ok)
             {
-                Debug.Log("[BindCodeGen] 回填完成:" + className);
+                Debug.Log("[LiteCodeGen] 回填完成:" + className);
             }
             else
             {
-                Debug.LogWarning("[BindCodeGen] " + error);
+                Debug.LogWarning("[LiteCodeGen] " + error);
             }
         }
 
@@ -128,7 +128,7 @@ namespace BindCodeGen.EditorTools
                 }
             }
 
-            Debug.Log("[BindCodeGen] 已为 " + count + " 个子物体添加 BindNode 标记");
+            Debug.Log("[LiteCodeGen] 已为 " + count + " 个子物体添加 BindNode 标记");
         }
     }
 }

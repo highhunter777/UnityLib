@@ -1,10 +1,10 @@
 //------------------------------------------------------------
-// BindCodeGen - 独立版绑定代码生成
+// LiteCodeGen - 独立版绑定代码生成
 //------------------------------------------------------------
 using UnityEditor;
 using UnityEngine;
 
-namespace BindCodeGen.EditorTools
+namespace LiteCodeGen.EditorTools
 {
     public static class BindMenus
     {
@@ -27,13 +27,13 @@ namespace BindCodeGen.EditorTools
 
             if (go.GetComponent<BindRoot>() != null)
             {
-                Debug.LogWarning("[BindCodeGen] '" + go.name + "' 已存在 BindRoot");
+                Debug.LogWarning("[LiteCodeGen] '" + go.name + "' 已存在 BindRoot");
                 return;
             }
 
             Undo.AddComponent<BindRoot>(go);
             Selection.activeGameObject = go;
-            Debug.Log("[BindCodeGen] 已添加 BindRoot,请设置命名空间/输出目录后生成代码");
+            Debug.Log("[LiteCodeGen] 已添加 BindRoot,请设置命名空间/输出目录后生成代码");
         }
 
         [MenuItem(RootMenuPath, true)]
@@ -61,7 +61,7 @@ namespace BindCodeGen.EditorTools
                 }
             }
 
-            Debug.Log("[BindCodeGen] 已为 " + count + " 个节点添加 BindNode 标记");
+            Debug.Log("[LiteCodeGen] 已为 " + count + " 个节点添加 BindNode 标记");
         }
 
         [MenuItem(BindMenuPath, true)]
@@ -114,7 +114,7 @@ namespace BindCodeGen.EditorTools
                 var target = FindRootInPrefab(asset);
                 if (target == null)
                 {
-                    Debug.LogWarning("[BindCodeGen] prefab '" + asset.name + "' 内没有 BindRoot,已跳过");
+                    Debug.LogWarning("[LiteCodeGen] prefab '" + asset.name + "' 内没有 BindRoot,已跳过");
                     continue;
                 }
 
@@ -126,7 +126,7 @@ namespace BindCodeGen.EditorTools
 
             if (generated > 0)
             {
-                Debug.Log("[BindCodeGen] 共生成 " + generated + " 个绑定脚本");
+                Debug.Log("[LiteCodeGen] 共生成 " + generated + " 个绑定脚本");
             }
         }
 

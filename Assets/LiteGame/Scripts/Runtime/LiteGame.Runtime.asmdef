@@ -11,7 +11,7 @@
 		"xLuaMain",
 		"DOTween.Modules",
 		"Unity.TextMeshPro",
-		"BindCodeGen.Runtime"
+		"LiteCodeGen.Runtime"
 	],
 	"includePlatforms": [],
 	"excludePlatforms": [],

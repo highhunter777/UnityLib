@@ -1,11 +1,11 @@
 //------------------------------------------------------------
-// BindCodeGen - 独立版绑定代码生成
+// LiteCodeGen - 独立版绑定代码生成
 //------------------------------------------------------------
 using System;
 using System.Collections.Generic;
 using UnityEngine;
 
-namespace BindCodeGen.EditorTools
+namespace LiteCodeGen.EditorTools
 {
     /// <summary>一次收集到的单个绑定标记信息。</summary>
     public sealed class BindMark

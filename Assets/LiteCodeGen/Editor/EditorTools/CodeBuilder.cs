@@ -1,9 +1,9 @@
 //------------------------------------------------------------
-// BindCodeGen - 独立版绑定代码生成
+// LiteCodeGen - 独立版绑定代码生成
 //------------------------------------------------------------
 using System.Text;
 
-namespace BindCodeGen.EditorTools
+namespace LiteCodeGen.EditorTools
 {
     /// <summary>极简缩进代码写器,负责生成 C# 文本。</summary>
     public sealed class CodeBuilder

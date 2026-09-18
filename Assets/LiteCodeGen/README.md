@@ -1,4 +1,4 @@
-# BindCodeGen —— 独立版绑定代码生成
+# LiteCodeGen —— 独立版绑定代码生成
 
 > 功能思路源自 QFramework 的 UIKit / CodeGenKit(MIT License,© 2016~2025 liangxiegame)。
 > 本包把它抽成**零 QFramework 依赖**的自包含 Unity 编辑器工具:打标记 → 生成 partial 绑定代码 → 编译后自动把引用回填进 Prefab/场景。生成的代码只依赖 `UnityEngine`,主类基类可配置成你自己的框架基类(如 GameFramework 的 `UIFormLogic` / `EntityLogic`)。
@@ -11,7 +11,7 @@
 
 ## 安装
 
-把 `BindCodeGen/` 整个文件夹拷进任意 Unity 工程的 `Assets/` 下即可(含 `Runtime/`、`Editor/` 两个 asmdef)。
+把 `LiteCodeGen/` 整个文件夹拷进任意 Unity 工程的 `Assets/` 下即可(含 `Runtime/`、`Editor/` 两个 asmdef)。
 
 ## 核心概念
 
@@ -42,14 +42,14 @@ public partial class Player
 
 ## 使用步骤(推荐:Prefab 工作流)
 
-1. **选中 Prefab**,在 Project 面板执行菜单 `Assets > BindCodeGen > 生成绑定代码`,或双击进入 Prefab 编辑模式;
-2. 给根节点挂 `BindRoot`(层级菜单 `GameObject > BindCodeGen > 添加 BindRoot(生成根)`);
+1. **选中 Prefab**,在 Project 面板执行菜单 `Assets > LiteCodeGen > 生成绑定代码`,或双击进入 Prefab 编辑模式;
+2. 给根节点挂 `BindRoot`(层级菜单 `GameObject > LiteCodeGen > 添加 BindRoot(生成根)`);
 3. 在 `BindRoot` 上设置:
    - **ScriptName**:类名(默认取根节点名,留空自动);
    - **Namespace**:如 `MyGame.Entity`;
    - **ScriptsFolder**:输出目录,如 `Assets/Scripts/Generated`(可直接把文件夹拖到 Inspector 的"输出目录"栏);
    - **BaseClassFullName**:主类基类完整名,如 `UnityGameFramework.Runtime.EntityLogic`;**留空 = `MonoBehaviour`**;
-4. 给需要绑定的子节点逐个挂 `BindNode` 标记(选中节点后菜单 `GameObject > BindCodeGen > 添加 BindNode 标记`,或在节点组件上右键);
+4. 给需要绑定的子节点逐个挂 `BindNode` 标记(选中节点后菜单 `GameObject > LiteCodeGen > 添加 BindNode 标记`,或在节点组件上右键);
 5. 点 `BindRoot` Inspector 上的 **① 生成代码**;
 6. 脚本编译完成后自动完成:把生成的脚本组件挂上根节点、按标记把引用回填进 Prefab(场景里所有使用该 Prefab 的实例同步生效);
 7. 在自动打开的 `Player.cs` 里写逻辑,直接用 `Weapon` 等字段。
@@ -83,14 +83,14 @@ public partial class Player
 ## 文件结构
 
 ```
-BindCodeGen/
+LiteCodeGen/
 ├─ README.md
 ├─ Runtime/
-│  ├─ BindCodeGen.Runtime.asmdef
+│  ├─ LiteCodeGen.Runtime.asmdef
 │  ├─ BindNode.cs              子标记组件(自动识别组件类型)
 │  └─ BindRoot.cs              根标记(生成配置)
 └─ Editor/
-   ├─ BindCodeGen.Editor.asmdef
+   ├─ LiteCodeGen.Editor.asmdef
    ├─ BindMenus.cs             各种菜单入口
    ├─ Inspectors/
    │  ├─ BindRootInspector.cs

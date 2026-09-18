@@ -1,8 +1,8 @@
 {
-    "name": "BindCodeGen.Editor",
-    "rootNamespace": "BindCodeGen",
+    "name": "LiteCodeGen.Editor",
+    "rootNamespace": "LiteCodeGen",
     "references": [
-        "BindCodeGen.Runtime"
+        "LiteCodeGen.Runtime"
     ],
     "includePlatforms": [
         "Editor"

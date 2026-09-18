@@ -1,11 +1,11 @@
 //------------------------------------------------------------
-// BindCodeGen - 独立版绑定代码生成
+// LiteCodeGen - 独立版绑定代码生成
 //------------------------------------------------------------
 using System.Collections.Generic;
 using UnityEditor;
 using UnityEngine;
 
-namespace BindCodeGen.EditorTools
+namespace LiteCodeGen.EditorTools
 {
     [CustomEditor(typeof(BindNode))]
     public sealed class BindNodeInspector : Editor
@@ -99,7 +99,7 @@ namespace BindCodeGen.EditorTools
                 var rootBind = FindRoot(bind);
                 if (rootBind == null)
                 {
-                    Debug.LogError("[BindCodeGen] 找不到父级 BindRoot,请把根节点挂上 BindRoot");
+                    Debug.LogError("[LiteCodeGen] 找不到父级 BindRoot,请把根节点挂上 BindRoot");
                 }
                 else
                 {

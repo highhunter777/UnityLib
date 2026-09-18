@@ -1,5 +1,5 @@
 //------------------------------------------------------------
-// BindCodeGen - 独立版绑定代码生成
+// LiteCodeGen - 独立版绑定代码生成
 //------------------------------------------------------------
 using System;
 using System.Collections.Generic;
@@ -10,7 +10,7 @@ using UnityEditor.Compilation;
 using UnityEditor.SceneManagement;
 using UnityEngine;
 
-namespace BindCodeGen.EditorTools
+namespace LiteCodeGen.EditorTools
 {
     /// <summary>生成主流程:搜索标记 → 写文件 → 排入"编译后回填"队列。</summary>
     public static class BindGenerator
@@ -23,7 +23,7 @@ namespace BindCodeGen.EditorTools
             }
             catch (Exception e)
             {
-                Debug.LogError("[BindCodeGen] 生成失败:\n" + e);
+                Debug.LogError("[LiteCodeGen] 生成失败:\n" + e);
                 return false;
             }
         }
@@ -32,14 +32,14 @@ namespace BindCodeGen.EditorTools
         {
             if (rootObject == null)
             {
-                Debug.LogError("[BindCodeGen] 根节点为空");
+                Debug.LogError("[LiteCodeGen] 根节点为空");
                 return false;
             }
 
             var root = rootObject.GetComponent<BindRoot>();
             if (root == null)
             {
-                Debug.LogError("[BindCodeGen] 根节点缺少 BindRoot 组件,请先添加");
+                Debug.LogError("[LiteCodeGen] 根节点缺少 BindRoot 组件,请先添加");
                 return false;
             }
 
@@ -56,7 +56,7 @@ namespace BindCodeGen.EditorTools
 
             if (errors.Count > 0)
             {
-                Debug.LogError("[BindCodeGen] 生成中止:\n" + string.Join("\n", errors.ToArray()));
+                Debug.LogError("[LiteCodeGen] 生成中止:\n" + string.Join("\n", errors.ToArray()));
                 return false;
             }
 
@@ -69,7 +69,7 @@ namespace BindCodeGen.EditorTools
 
             if (!folder.StartsWith("Assets", StringComparison.Ordinal))
             {
-                Debug.LogError("[BindCodeGen] 脚本目录必须以 Assets 开头(当前:" + folder + ")");
+                Debug.LogError("[LiteCodeGen] 脚本目录必须以 Assets 开头(当前:" + folder + ")");
                 return false;
             }
 
@@ -78,7 +78,7 @@ namespace BindCodeGen.EditorTools
             var designerPath = folder + "/" + className + ".Designer.cs";
 
             var mainContent = BindTemplates.BuildMainFile(className, ns, root.BaseClassFullName);
-            var designerContent = BindTemplates.BuildDesignerFile(className, ns, marks, root.BaseClassFullName);
+            var designerContent = BindTemplates.BuildDesignerFile(className, ns, marks, root.EmitRegisterControl);
 
             EnsureFolderExists(folder);
 
@@ -119,7 +119,7 @@ namespace BindCodeGen.EditorTools
 
                 CompilationPipeline.RequestScriptCompilation();
 
-                Debug.Log("[BindCodeGen] 已生成 " + className + ",编译完成后自动回填引用。\n  " + mainPath + "\n  " +
+                Debug.Log("[LiteCodeGen] 已生成 " + className + ",编译完成后自动回填引用。\n  " + mainPath + "\n  " +
                           designerPath);
             }
             else
@@ -132,11 +132,11 @@ namespace BindCodeGen.EditorTools
 
                 if (ok)
                 {
-                    Debug.Log("[BindCodeGen] 内容未变化,已直接回填引用: " + className);
+                    Debug.Log("[LiteCodeGen] 内容未变化,已直接回填引用: " + className);
                 }
                 else
                 {
-                    Debug.LogWarning("[BindCodeGen] " + error);
+                    Debug.LogWarning("[LiteCodeGen] " + error);
                 }
             }
 
@@ -242,7 +242,7 @@ namespace BindCodeGen.EditorTools
                 }
                 catch (Exception e)
                 {
-                    Debug.LogWarning("[BindCodeGen] 保存 Prefab 失败:" + e.Message);
+                    Debug.LogWarning("[LiteCodeGen] 保存 Prefab 失败:" + e.Message);
                 }
 
                 return stage.assetPath;
