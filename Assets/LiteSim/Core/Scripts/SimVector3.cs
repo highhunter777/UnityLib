@@ -56,20 +56,23 @@ namespace LiteSim
 
         public static float Dot(SimVector3 a, SimVector3 b)
         {
-            return a.X * b.X + a.Y * b.Y + a.Z * b.Z;
+            // 融合安全：`a.X*b.X + a.Y*b.Y + a.Z*b.Z` 是 Mono 自动 FMA 的典型形态（实测差 1 ulp）
+            return SimMath.MulAdd3(a.X, b.X, a.Y, b.Y, a.Z, b.Z);
         }
 
         public static SimVector3 Cross(SimVector3 a, SimVector3 b)
         {
+            // 融合安全（MulSub2/MulAddSub3 走双精度累积）：Mono 会把 `a*b - c*d` 自动融合成 FMA，.NET 不会
             return new SimVector3(
-                a.Y * b.Z - a.Z * b.Y,
-                a.Z * b.X - a.X * b.Z,
-                a.X * b.Y - a.Y * b.X);
+                SimMath.MulSub2(a.Y, b.Z, a.Z, b.Y),
+                SimMath.MulSub2(a.Z, b.X, a.X, b.Z),
+                SimMath.MulSub2(a.X, b.Y, a.Y, b.X));
         }
 
         public float LengthSquared
         {
-            get { return X * X + Y * Y + Z * Z; }
+            // 融合安全：`X*X + Y*Y + Z*Z` 是 Mono 自动 FMA 的典型形态（实测差 1 ulp，见 SimMath 注释）
+            get { return SimMath.MulAdd3(X, X, Y, Y, Z, Z); }
         }
 
         public float Length

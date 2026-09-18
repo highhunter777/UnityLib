@@ -37,13 +37,14 @@ namespace LiteSim
                     if (originY > tgt.Pos.Y + SimConfig.HitscanHeight) continue;
 
                     // XZ 平面射线-圆求交：m = C-O；b = m·D（前向投影）；c2 = |m|² - b²（垂距平方）
+                    // 融合安全：`a*b + c*d` 形态一律走 SimMath 双精度累积件（Mono 会自动 FMA，.NET 不会）
                     float mx = tgt.Pos.X - shooter.Pos.X;
                     float mz = tgt.Pos.Z - shooter.Pos.Z;
-                    float b = mx * dx + mz * dz;
+                    float b = SimMath.MulAdd2(mx, dx, mz, dz);
                     if (b < 0f) continue; // 目标在身后
 
                     float r2 = SimConfig.HitscanRadius * SimConfig.HitscanRadius;
-                    float c2 = mx * mx + mz * mz - b * b;
+                    float c2 = SimMath.MulAddSub3(mx, mx, mz, mz, b, b);
                     if (c2 > r2) continue; // 垂距超出圆柱半径
 
                     float t = b - SimMath.Sqrt(r2 - c2);

@@ -56,16 +56,12 @@ namespace LiteSim.Editor
         }
 
         /// <summary>
-        /// 逐位对账。(ok, 人类可读报告)。
+        /// 逐位对账。(ok, 人类可读报告)。**全部行（含 10k 步 `Chain`）均为硬判据**。
         ///
-        /// **分层判定（2026-09-18 定）**：
-        /// - **逐值/相邻对行（Sqrt/Add/Sub/Mul/Div）= 硬判据**（ok）：这些是 IEEE 基本运算与该样本集下的 sqrt，
-        ///   不一致说明两侧基本运算路径不同 → 必须处理。
-        /// - **`Chain` 行（10k 步运算链）= 观测项**（不判 ok）：已在 Unity(2022.3/Mono) 与 .NET 8 间实测到
-        ///   **不一致**（2896875742 vs 3683559206，116 条逐值行全同、仅链不同）→ 判定为
-        ///   **跨运行时 ulp 级底噪**（`SimMath.Sqrt` 的 BCL 实现差异被 10k 步放大）。按 v3 定位，
-        ///   跨运行时一致是**预测/和解质量**而非正确性前提（权威快照兜底），故此处只**记录数值**，
-        ///   由 M10 对跑实测和解率后再定案（见《M10实施指导》§7 与该里程碑实施记录）。
+        /// 历史（2026-09-18）：`Chain` 曾是"观测项"——当时实测到 Unity(2022.3/Mono) 与 .NET 8 的
+        /// BCL `Math.Sqrt` 存在 ulp 差异被长链放大（.NET 2896875742 / Unity 3683559206）。
+        /// 定案 **B 方案**：`SimMath.Sqrt` 改为**自研 software sqrt**（纯整数/位运算 + 正确舍入），
+        /// 源头消除后两侧应逐位一致——故本方法恢复"任一不一致即失败"，`Chain` 同属硬判据。
         /// </summary>
         public static (bool ok, string report) Verify()
         {
@@ -84,37 +80,26 @@ namespace LiteSim.Editor
             sb.Append("基线行数=").Append(expected.Length).Append("  本端行数=").Append(actual.Length);
 
             var mismatches = new List<string>();
-            var chainNotes = new List<string>();
             int common = Math.Min(expected.Length, actual.Length);
             for (int i = 0; i < common; i++)
             {
                 if (string.Equals(expected[i], actual[i], StringComparison.Ordinal)) continue;
-                if (expected[i].StartsWith("Chain ", StringComparison.Ordinal) ||
-                    actual[i].StartsWith("Chain ", StringComparison.Ordinal))
-                {
-                    chainNotes.Add($"  Chain 观测：.NET={expected[i]} / Unity={actual[i]}（ulp 底噪，不判失败）");
-                    continue;
-                }
                 if (mismatches.Count < MaxReportedMismatches)
                     mismatches.Add($"  行{i + 1}:\n    .NET: {expected[i]}\n    Unity: {actual[i]}");
             }
-
-            if (chainNotes.Count > 0)
-            {
-                sb.Append("\n[观测] 运算链跨运行时不一致（已定案为底噪，记录不阻断）：");
-                foreach (string n in chainNotes) sb.Append('\n').Append(n);
-            }
+            if (expected.Length != actual.Length)
+                mismatches.Add($"  行数不一致（.NET {expected.Length} / Unity {actual.Length}）——探针与基线不匹配");
 
             if (mismatches.Count == 0)
             {
-                sb.Append("\n逐值/相邻对行逐位一致 ✓（");
-                sb.Append(expected.Length - chainNotes.Count).Append(" 行）");
+                sb.Append("\n全部逐位一致 ✓（含 10k 步 Chain=").Append(IeeeProbe.ChainChecksum()).Append("）");
                 return (true, sb.ToString());
             }
 
             sb.Append("\n不一致 ").Append(mismatches.Count).Append(" 处（最多显示 ").Append(MaxReportedMismatches).Append("）：");
             foreach (string m in mismatches) sb.Append('\n').Append(m);
-            sb.Append("\n提示：逐值行不一致 = 两侧基本运算路径不同；若确为浮点路径变化，需在 .NET 侧重录基线并带 [baseline] 说明。");
+            sb.Append("\n提示：Chain 不一致 = sqrt 等浮点路径又出现跨运行时差异（检查是否有人绕过 SimMath.Sqrt 用了 BCL）；");
+            sb.Append("逐值行不一致 = 两侧基本运算路径不同。重录基线须带 [baseline] 说明。");
             return (false, sb.ToString());
         }
 

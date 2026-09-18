@@ -22,11 +22,13 @@
 | **L2 EditMode 用例**（§5-27） | `Assets/Tests/EditMode/`（asmdef `LiteGame.EditModeTests`，`UNITY_INCLUDE_TESTS` 门控）；编辑器在跑时经 `unity command run_tests mode=EditMode` 直跑，**无需关闭编辑器**；`Total=0` 判失败（防"测试程序集没编进来"静默通过） |
 | **Unity 侧 IEEE 对账**（§5-28） | `LiteSim.Core.Editor/IeeeBaselineChecker`（菜单「LiteSim/对账 IEEE 基线」+ `RunCli`）；**探针下沉到 `LiteSim.Core/IeeeProbe`**——两侧同一份样本与运算，避免各写一份漂移 |
 
-> ⚠️ **2026-09-18 实测发现（跨运行时底噪）**：Unity(2022.3/Mono) 与 .NET 8 在 **10k 步运算链**上 checksum 不一致
-> （`Chain`：Unity `3683559206` vs .NET `2896875742`），而 **116 条逐值/相邻对行全部逐位一致**。
-> 判定：`SimMath.Sqrt`（BCL `Math.Sqrt`）在两侧存在 ulp 级差异、被长链放大——**门禁据此分层**：
-> 逐值行 = 硬判据；`Chain` 行 = **观测项**（对象：M10 和解率；定案见《M10实施指导》§7 与实施记录）。
-> v3 定位下这属**预测/和解质量**而非正确性前提（权威快照兜底），故 L2 记录而不阻断。
+> ⚠️ **2026-09-18 实测发现 → 当晚定案 B 并落地**：Unity(2022.3/Mono) 与 .NET 8 在 **10k 步运算链**上 checksum 不一致
+> （`Chain`：.NET `2896875742` / Unity `3683559206`），116 条逐值/相邻对行全同。
+> **真因**（诊断修正）：**Mono JIT 把 `a*b + c*d` 自动融合成 FMA**（单次舍入），.NET 8 严格逐步舍入 → 差 1 ulp；
+> 拆局部变量**不能**阻止融合（实测）。BCL `Math.Sqrt` **不是**原因（逐值行全同证明了这一点）。
+> **修法两刀**：① `SimMath.Sqrt` 改自研 software sqrt（纯整数位运算 + 正确舍入，消除 BCL 数学依赖）；
+> ② **融合安全算术件**（`MulAdd2/3`、`MulSub2`、`MulAdd/Sub` 等，双精度累积+单次舍入）——float×float 在 double 精确 → 融合无害。
+> **结果**：Chain 两侧逐位一致（=3683559206 ✓）；基线重录（`[baseline]`）；**Chain 升为硬判据**（EditMode 用例直跑断言）。
 
 ## 2. 脚本用法（`scripts/l2-unity-gate.ps1`）
 
