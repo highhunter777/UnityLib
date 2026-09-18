@@ -41,7 +41,7 @@ Assets/LiteGame/UI/
 - 锚点：模板按"内容自适应 + 锚点居中"设计，实例化方设尺寸；`SafeAreaReceiver` 纳入适配层统一维护
 
 **灰盒美术标准**：
-- 统一色板（背景/主色/警告/禁用四色）、九宫格边界切片、单一占位字体
+- 统一色板（背景/主色/警告/禁用四色）、九宫格边界切片、单一占位字体——**色板已于 2026-09-17 token 化落地**：`Editor/Style/UiStyle.cs`（12 token：Bg/BgDeep/ItemBg 三级底 + Primary/Accent/Warn/Success 语义色 + Text/TextDim/TextBright 文字 + Raycast/Mark 引导件专用）+ 批量工具 `UiStyleTool`（菜单 `LiteGame/UI/样式工具/`——刷新按 token 收敛/对账报漂移）。**定案：仅编辑器工具语义**——颜色归手作 prefab 序列化数据，工具不进运行时、不挂组件；改 token 值后重跑"刷新"即向存量传播（最近 token 匹配 + 1e-4 阈值，幂等可重入）；手调新色由"对账"报告暴露不擅改。2026-09-17 首轮执行：22 模板 / 68 处离散变体收敛，零漂移基线成立（详见 §9）
 - **禁止业务文案与图标**：文案走表/Lua（`Bridge.ui` 受控 API），占位图仅形态示意
 
 **变体策略**：同族用 prefab variant 派生（如 `Dialog` 的确认/警告/输入三 variant；`StateButton` 的多态视觉用子资源状态图，不做多 prefab）
@@ -142,3 +142,17 @@ Assets/LiteGame/UI/
 - [ ] 批⑧ 剩余缺口（P1/P2：星级/滚动数值/步进/输入三件/红点/列表协议/切页/动图/头像/点击区/引导/动效口/Lua 绑定区）——清单见《UI控件Lua用法表》§3
 - [x] **YooAsset 收集组**（**已完成，2026-09-17，见《UI资源热更缺口收口》§2**）：`LiteGameUI`（`Assets/LiteGame/UI/Screens`，`PackSeparately`，tag `ui`）+ `LiteGameWidgets`（`Assets/LiteGame/UI/Widgets`，`PackDirectory`，tag `ui`）；编辑器态采集 43 件 / UI 目录 26 件全带 tag，运行时 26/26 可加载 → PASS
 - [ ] 界面级命名约定文档（实例化后如何命名子控件，避免重名——见 §8.3-1 与 §8.2 备忘 2）
+
+---
+
+## 9. 样式 token 与批量工具（2026-09-17 落地）
+
+**定案背景**：模板维护路径改为**手作 prefab**（构建器降级为历史参考——2026-09-17 用户定案）；颜色归 prefab 序列化数据，样式系统取"**仅编辑器工具**"语义（不进运行时、不挂组件、无覆盖冲突）。
+
+**交付件**（`Assets/LiteGame/Scripts/Editor/Style/`）：
+- `UiStyle.cs`：12 token 单源（三级底/语义色/文字/引导件专用；值来自构建器 39 处颜色的意图归纳）
+- `UiStyleTool.cs`：菜单 `LiteGame/UI/样式工具/`——**刷新**（最近 token 匹配 + 1e-4 阈值收敛，幂等可重入；改 token 值后重跑即向存量传播）与**对账**（漂移报告：手调新色只报不改）
+
+**首轮执行记录**：22 模板 / 68 处离散变体收敛（同意图色值漂移消除）；剩余 6 处纯白补录为 `TextBright` token 后，**零漂移基线成立**（对账通过 + 刷新 0 处幂等）。
+
+**触发性留档（YAGNI）**：运行时主题/SO 换肤、role 标记组件、编排器样式面板——留待《编辑器设计规划》阶段二编排器一并；触发条件 = 第二次出现"要批量改一批颜色"的实际需求。
