@@ -7,10 +7,26 @@
 
 | 级别 | 在哪跑 | 抓什么 | 时长 |
 | --- | --- | --- | --- |
-| **L1** | GitHub-hosted `windows-latest`（`.github/workflows/ci.yml` → `l1-dotnet-test`） | `dotnet test Tests/Tests.slnx`：框架层纯 C# 单测（LiteFramework.Core / LiteSim.Core / DisciplineScanner） | 秒级 |
-| **L2** | **自托管 runner**（Windows + 完整工程）→ `l2-unity-gate` | ① **非法 meta/GUID 扫描**（纯文件）② **Unity 侧编译/诊断状态**（经 Unity Pipeline 或 batchmode EditMode 测试） | ①秒级 ②分钟级 |
+| **L1** | GitHub-hosted **矩阵：`windows-latest` + `ubuntu-latest`**（`.github/workflows/ci.yml` → `l1-dotnet-test`） | `dotnet test Tests/Tests.slnx`：框架层纯 C# 单测（LiteFramework.Core / LiteSim.Core / LiteNet）+ **基线防篡改校验** | 秒级 |
+| **L2** | **自托管 runner**（Windows + 完整工程）→ `l2-unity-gate` | ① **非法 meta/GUID 扫描**（纯文件）② **Unity 侧编译/诊断状态**（经 Unity Pipeline）③ **EditMode 用例**（`Assets/Tests/EditMode`：IEEE 基线逐位对账 + UI 模板/资源完整性） | ①秒级 ②③分钟级 |
 
-**L2 的独有价值**：它是唯一能发现"**资源导入/Unity 编译**"类故障的一层——L1 结构性看不见。
+**L2 的独有价值**：它是唯一能发现"**资源导入 / Unity 编译 / 跨运行时数值**"类故障的一层——L1 结构性看不见。
+
+**2026-09-18 升级（《待办总览》§5-27/28/30/31/32）**：
+
+| 项 | 落地形态 |
+| --- | --- |
+| **跨平台 matrix**（§5-31） | L1 双平台并行（`fail-fast: false`）；已核对无平台专属依赖（临时目录 / 路径 Ordinal 归一化 / BuildHash 行尾归一化 / 无 Win32 API） |
+| **基线防篡改**（§5-30，轻量版） | CI 步：`Tests/**/Baselines/**` 变更必须在 PR 标题/正文或提交信息带 **`[baseline]`**，否则失败——基线是确定性的裁判，静默改动会掩盖回归 |
+| **超时保护**（§5-32） | job `timeout-minutes` + `dotnet test --blame-hang-timeout 5m`（挂死输出挂起栈）；`setup-dotnet cache` 顺带缓存 NuGet |
+| **L2 EditMode 用例**（§5-27） | `Assets/Tests/EditMode/`（asmdef `LiteGame.EditModeTests`，`UNITY_INCLUDE_TESTS` 门控）；编辑器在跑时经 `unity command run_tests mode=EditMode` 直跑，**无需关闭编辑器**；`Total=0` 判失败（防"测试程序集没编进来"静默通过） |
+| **Unity 侧 IEEE 对账**（§5-28） | `LiteSim.Core.Editor/IeeeBaselineChecker`（菜单「LiteSim/对账 IEEE 基线」+ `RunCli`）；**探针下沉到 `LiteSim.Core/IeeeProbe`**——两侧同一份样本与运算，避免各写一份漂移 |
+
+> ⚠️ **2026-09-18 实测发现（跨运行时底噪）**：Unity(2022.3/Mono) 与 .NET 8 在 **10k 步运算链**上 checksum 不一致
+> （`Chain`：Unity `3683559206` vs .NET `2896875742`），而 **116 条逐值/相邻对行全部逐位一致**。
+> 判定：`SimMath.Sqrt`（BCL `Math.Sqrt`）在两侧存在 ulp 级差异、被长链放大——**门禁据此分层**：
+> 逐值行 = 硬判据；`Chain` 行 = **观测项**（对象：M10 和解率；定案见《M10实施指导》§7 与实施记录）。
+> v3 定位下这属**预测/和解质量**而非正确性前提（权威快照兜底），故 L2 记录而不阻断。
 
 ## 2. 脚本用法（`scripts/l2-unity-gate.ps1`）
 
@@ -26,7 +42,7 @@ powershell -NoProfile -File scripts/l2-unity-gate.ps1 -UnityExe 'D:\Unity\2022.3
 
 | 模式 | 触发条件 | 做法 | 特点 |
 | --- | --- | --- | --- |
-| **A. Pipeline**（推荐） | `Library/Pipeline/.unity-pipeline-port` 存在（编辑器在跑） | `unity command recompile_status` + `console_status` | **无需关闭编辑器**；复用已连接的编辑器会话 |
+| **A. Pipeline**（推荐） | `Library/Pipeline/.unity-pipeline-port` 存在（编辑器在跑） | `recompile_status` + `console` + **`run_tests mode=EditMode`** | **无需关闭编辑器**；复用已连接的编辑器会话；EditMode 用例直跑 |
 | **B. batchmode** | 编辑器未跑，或显式 `-RunEditModeTests` | `unity test --mode EditMode --output TestResults/editmode-results.xml` | 需要授权激活，且**不得有其它实例占用该工程**（脚本会检测并明确报错） |
 
 退出码：**0 = 通过，1 = 有 FAIL**（可直接用作 pre-push/CI 门禁）。
