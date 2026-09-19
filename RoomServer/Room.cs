@@ -29,8 +29,8 @@ namespace RoomServer
         public readonly SimMapData Map;
         public readonly SnapshotRing SnapshotHistory; // 回溯环（M9 类，容量 LagCompHistory）
         public readonly InputGate Gate;
-        public readonly SnapshotDiffer Differ;         // 增量快照源（批③；批② 为 FullSnapshotSource 占位）
         public readonly LagCompensator LagComp;        // 命中回溯（批③）
+        public readonly RoomBroadcaster Broadcaster;   // 快照广播（2026-09-19 拆分：广播面独立，本类只管权威模拟与席位）
 
         /// <summary>成员：playerId → 会话。</summary>
         private readonly Dictionary<int, Session> _members = new Dictionary<int, Session>();
@@ -40,10 +40,6 @@ namespace RoomServer
         private readonly SimInputFrame[] _frameInputs;
         /// <summary>成员序（playerId 升序，广播按此序——确定性）。</summary>
         private readonly Session[] _playerSessions;
-        /// <summary>本帧要广播的序号（每 TickRate/SnapshotHz 帧一次）。</summary>
-        private int _broadcastOrdinal;
-        /// <summary>下一次广播整帧强制全量（重连：新客户端要从零重建；用后自动清零）。</summary>
-        private bool _forceFullPending;
         /// <summary>全体输入历史（重连补发用；§5.6 —— 环容量 <see cref="SimConfig.MaxInputHistory"/>，够 32 帧）。</summary>
         private readonly InputHistory _recentInputs = new InputHistory(SimConfig.MaxInputHistory, ExpectedPlayers);
 
@@ -53,11 +49,13 @@ namespace RoomServer
 
         // ---- Ops 计数 ----
         public long StepsCount;
-        public long SnapshotSent;
-        public long SnapshotFullSent;
-        public long BackpressureThrottled;      // 因背压降档跳过的广播次数
-        public long BackpressureDegraded;       // 触发的降级动作次数（收缩 AOI/裁剪实体）
         public long FireInputsProcessed;        // 走回溯路径的开火输入数
+
+        // 广播面计数 → 转发 RoomBroadcaster（2026-09-19 拆分：外部引用零改动）
+        public long SnapshotSent => Broadcaster.SnapshotSent;
+        public long SnapshotFullSent => Broadcaster.SnapshotFullSent;
+        public long BackpressureThrottled => Broadcaster.BackpressureThrottled;
+        public SnapshotDiffer Differ => Broadcaster.Differ;   // Ops 快照尺寸统计转发
 
         public Room(string roomId)
         {
@@ -66,11 +64,11 @@ namespace RoomServer
             AuthSim = new SimWorldState();
             SnapshotHistory = new SnapshotRing(SimConfig.LagCompHistory);
             Gate = new InputGate(ExpectedPlayers);
-            Differ = new SnapshotDiffer();
             LagComp = new LagCompensator(AuthSim, ExpectedPlayers, SnapshotHistory);
             _entityIds = new long[ExpectedPlayers];
             _frameInputs = new SimInputFrame[ExpectedPlayers];
             _playerSessions = new Session[ExpectedPlayers];
+            Broadcaster = new RoomBroadcaster(_playerSessions, _entityIds, new SnapshotDiffer());
         }
 
         /// <summary>成员就位分配玩家号（StartGame 前调用）；满员返回 -1。</summary>
@@ -193,7 +191,7 @@ namespace RoomServer
 
             ConsumePendingFire();                             // 回溯判定（本步产生开火输入时）
 
-            BroadcastIfDue(steppedFrame);
+            Broadcaster.BroadcastIfDue(steppedFrame, AuthSim, Gate);
             return true;
         }
 
@@ -214,128 +212,10 @@ namespace RoomServer
             FireInputsProcessed++;
         }
 
-        /// <summary>
-        /// 到点广播（30Hz：每 TickRate/SnapshotHz 帧一次）。
-        /// E1 背压按会话分档：档位 0 全速；档位 1 抽帧；档位 2 收缩 AOI；档位 3 额外裁掉最远实体。
-        /// 降档只影响**该客户端**，其余客户端不受拖累（《服务端架构设计》§10-E1 验收点）。
-        /// </summary>
-        private void BroadcastIfDue(int frame)
-        {
-            if (frame <= 0) return;
-            int stride = SimConfig.TickRate / SimConfig.SnapshotHz;
-            if (stride < 1) stride = 1;
-            _broadcastOrdinal++;
-            if (_broadcastOrdinal % stride != 0) return;
+        /// <summary>下一次广播强制全量（重连场景：客户端要从零重建）。转调广播器（广播面已拆出）。</summary>
+        public void RequestFullSnapshot() => Broadcaster.RequestFullSnapshot();
 
-            int broadcastIndex = _broadcastOrdinal / stride;   // 第几次广播（抽帧档按它取模）
-
-            // ① 每广播帧**算一次差分**（推进金标）——多客户端共享同一份，各自只做 AOI 过滤（纯读）。
-            // 全量触发（重连待补 / 有客户端 ack 掉队 / 周期性）是**整帧**属性：本帧对所有客户端都是全量，
-            // 客户端各自丢弃多余槽位即可（1s 周期兜底本来就会发生，代价可接受；换来的是差分基线的一义性）。
-            bool forceFull = _forceFullPending;
-            for (int p = 0; p < ExpectedPlayers; p++)
-            {
-                Session session = _playerSessions[p];
-                if (session == null || session.Disconnected) continue;
-                if (Differ.NeedsFull(session.LastAckSnapshot)) forceFull = true;
-            }
-            _forceFullPending = false;
-            Differ.BeginFrame(frame, AuthSim, forceFull);
-
-            // ② 每客户端各取可见部分（背压档位只影响该客户端）
-            for (int p = 0; p < ExpectedPlayers; p++)
-            {
-                Session session = _playerSessions[p];
-                if (session == null || session.Disconnected) continue;
-
-                UpdateBackpressureTier(session, frame);
-                if (session.BackpressureTier >= 1 && broadcastIndex % ProtocolConstants.ThrottledStride != 0)
-                {
-                    BackpressureThrottled++;      // 档位 1+：抽帧（该客户端本次不发；其余客户端不受影响）
-                    continue;
-                }
-
-                SendSnapshot(session, p, frame);
-            }
-        }
-
-        private void SendSnapshot(Session session, int playerId, int frame)
-        {
-            long entityId = _entityIds[playerId];
-            SimVector3 viewPos = ResolvePosition(entityId);
-            float radius = session.BackpressureTier >= 2 ? ProtocolConstants.ThrottleAoiRadius : SimConfig.AoiRadius;
-
-            Proto.StateSnapshot snapshot = Differ.BuildFor(frame, AuthSim, Gate.LastAcceptedFrame(playerId), viewPos, radius);
-            if (session.BackpressureTier >= 3) TrimFarthest(snapshot, viewPos);   // 档位 3：低优先级实体丢弃
-            if (snapshot.IsFull) SnapshotFullSent++;
-
-            int bytes = snapshot.CalculateSize();
-            session.SendQueueBytes += bytes;
-            SnapshotSent++;
-            SendSnapshotTo(session, snapshot);
-        }
-
-        /// <summary>下一次广播强制全量（重连场景：客户端要从零重建）。</summary>
-        public void RequestFullSnapshot() => _forceFullPending = true;
-
-        /// <summary>档位 3：裁掉"距视点最远的"一半实体（低优先级丢弃，§10-E1 第三级）。</summary>
-        private static void TrimFarthest(Proto.StateSnapshot snapshot, SimVector3 viewPos)
-        {
-            if (snapshot.Slots.Count <= 1) return;
-            int keep = (int)(snapshot.Slots.Count * ProtocolConstants.ThrottleEntityKeepRatio);
-            if (keep >= snapshot.Slots.Count) return;
-
-            // 按 XZ 距离升序（稳定：距离相等时保持原序——确定性），保留前 keep 个
-            var pairs = new List<KeyValuePair<float, int>>(snapshot.Slots.Count);
-            for (int i = 0; i < snapshot.Slots.Count; i++)
-            {
-                Proto.SlotDelta d = snapshot.Slots[i];
-                float dx = d.PosX - viewPos.X;
-                float dz = d.PosZ - viewPos.Z;
-                float d2 = SimMath.MulAdd2(dx, dx, dz, dz);
-                pairs.Add(new KeyValuePair<float, int>(d2, i));
-            }
-            pairs.Sort((a, b) => a.Key != b.Key ? a.Key.CompareTo(b.Key) : a.Value.CompareTo(b.Value));
-
-            var kept = new List<Proto.SlotDelta>(keep);
-            for (int i = 0; i < keep; i++) kept.Add(snapshot.Slots[pairs[i].Value]);
-            snapshot.Slots.Clear();
-            snapshot.Slots.AddRange(kept);
-        }
-
-        /// <summary>E1 水位判定与档位升降（滞回：水位超限即升档；低于 40% 且持续 2s 才逐档降）。</summary>
-        private static void UpdateBackpressureTier(Session session, int frame)
-        {
-            long queued = session.SendQueueBytes - session.AckedBytes;
-            if (queued < 0) queued = 0;
-
-            if (queued > ProtocolConstants.BackpressureQueueLimitBytes)
-            {
-                if (session.BackpressureTier < 3) session.BackpressureTier++;
-                session.BackpressureDrops++;
-                session.RecoverSinceFrame = -1;
-                return;
-            }
-
-            if (session.BackpressureTier > 0)
-            {
-                if (queued <= ProtocolConstants.BackpressureQueueLimitBytes * ProtocolConstants.BackpressureRecoverRatio)
-                {
-                    if (session.RecoverSinceFrame < 0) session.RecoverSinceFrame = frame;
-                    else if (frame - session.RecoverSinceFrame >= ProtocolConstants.RecoverHoldMillis * SimConfig.TickRate / 1000)
-                    {
-                        session.BackpressureTier--;
-                        session.RecoverSinceFrame = -1;
-                    }
-                }
-                else
-                {
-                    session.RecoverSinceFrame = -1;
-                }
-            }
-        }
-
-        /// <summary>客户端 ack 到达：释放已确认的下行字节（E1 水位的减项）。</summary>
+        /// <summary>客户端 ack 到达：释放已确认的下行字节（E1 水位的减项；记账在广播器职责面，转发接缝）。</summary>
         public void OnClientAck(Session session, int ackSnapshot)
         {
             if (ackSnapshot < 0) return;
@@ -344,20 +224,12 @@ namespace RoomServer
             session.AckedBytes = session.SendQueueBytes;
         }
 
-        private SimVector3 ResolvePosition(long entityId)
-        {
-            if (AuthSim.TryResolve(entityId, out int slot)) return AuthSim.Entities[slot].Pos;
-            return SimVector3.Zero;
-        }
-
-        /// <summary>包发送出口（ServerHost 装配时注入；测试用 <c>Room.SendTo = (session, type, msg, reliable) => ...</c> 捕获）。</summary>
+        /// <summary>包发送出口（ServerHost 装配时注入；测试用 <c>Room.SendTo = (session, type, msg, reliable) => ...</c> 捕获）。
+        /// 广播器与 Room 共用同一出口——快照与信令最终都经它下发。</summary>
         public Action<Session, PacketType, Google.Protobuf.IMessage, bool> SendTo;
 
         /// <summary>Ops 计数挂点（ServerHost 装配；测试不挂 = 无计数）。计数由宿主/房间各自累加。</summary>
         public Action<Session, InputMessage> OnInputAccepted;
-
-        private void SendSnapshotTo(Session session, Proto.StateSnapshot snapshot)
-            => SendTo(session, PacketType.StateSnapshot, snapshot, false);
 
         /// <summary>标准灰盒地图：±50 边界 + 16 网格出生点（MVP 房间形态；正式地图装配归 M11）。</summary>
         private static SimMapData BuildStandardMap()
