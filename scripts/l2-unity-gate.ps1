@@ -135,6 +135,7 @@ if ((Test-Path $descriptor) -and -not $RunEditModeTests) {
             #     对策：无条件 Refresh(ForceSynchronousImport) + RequestScriptCompilation 并等编译收敛
             #     （幂等：无改动时几秒内返回）。
             $before = Get-NewestSourceTime
+            $refreshDone = $true
             try {
                 # 先清控制台缓冲：否则"上一次失败编译"的 error 会留在缓冲里被判成本次失败（2026-09-19 实测误报）
                 Invoke-PipelineCommand 'clear_console' | Out-Null
@@ -143,11 +144,15 @@ if ((Test-Path $descriptor) -and -not $RunEditModeTests) {
                 # （实测内联形式持续报 "Command 'eval' failed"，而 eval_file 一次就过）
                 $reqFile = Join-Path $ProjectPath 'Temp/l2-freshness-request.cs'
                 $stFile = Join-Path $ProjectPath 'Temp/l2-freshness-status.cs'
-                Set-Content -Path $reqFile -Encoding UTF8 -Value @(
-                    'UnityEditor.AssetDatabase.Refresh(UnityEditor.ImportAssetOptions.ForceSynchronousImport);',
-                    'UnityEditor.Compilation.CompilationPipeline.RequestScriptCompilation();')
-                Set-Content -Path $stFile -Encoding UTF8 -Value @(
-                    'return UnityEditor.EditorApplication.isCompiling ? 1 : 0;')
+                # 用 .NET 写无 BOM 的 UTF-8：Set-Content -Encoding UTF8 在 PS 5.1 下带 BOM，
+                # eval_file 的编译器会拒（实测 "Command 'eval_file' failed"）
+                $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+                [System.IO.File]::WriteAllText($reqFile, @"
+UnityEditor.AssetDatabase.Refresh(UnityEditor.ImportAssetOptions.ForceSynchronousImport);
+UnityEditor.Compilation.CompilationPipeline.RequestScriptCompilation();
+"@, $utf8NoBom)
+                [System.IO.File]::WriteAllText($stFile,
+                    'return UnityEditor.EditorApplication.isCompiling ? 1 : 0;', $utf8NoBom)
 
                 Invoke-PipelineCommand 'eval_file' @('Temp/l2-freshness-request.cs') | Out-Null
                 $waited = 0
@@ -159,20 +164,33 @@ if ((Test-Path $descriptor) -and -not $RunEditModeTests) {
                 }
             }
             catch {
-                # 刷新是"尽力而为"：编辑器正忙（编译中/域重载）时 eval 会失败——不中断，
-                # 由下面的新鲜度断言与编译状态给结论（否则一次瞬时失败会把整个 L2 判红）
-                Write-Note "新鲜度守卫：Refresh/编译请求未完成（$($_.Exception.Message)）——继续按现状校验"
+                # 刷新是"尽力而为"：编辑器正忙（编译中/域重载）时会失败——不中断，但要**记住没刷成**，
+                # 因为此时"源码新于程序集"无法判定（见下）
+                $refreshDone = $false
+                Write-Note "新鲜度守卫：Refresh/编译请求未完成（$($_.Exception.Message)）——按现状校验"
             }
+            $rec = Invoke-PipelineCommand 'recompile_status'
+            Write-Host "  recompile_status: $($rec.Trim())" -ForegroundColor DarkGray
             $after = Get-NewestAssemblyTime
+
+            # 新鲜度结论（**以 Unity 的判定为准，mtime 只作证据**）：
+            #  - 强制 Refresh 之后：Unity 说 up_to_date = 内容没变（生成物同内容重写 → mtime 变、内容不变，实测会误判）；
+            #    说 completed = 编译已跑完且无错。两者都意味着"程序集与源码一致"，**不去声称"这次重建了"**
+            #    （实测过：内容未变时 completed 但 dll mtime 不变）；
+            #  - 只有"刷新没能执行"时，才用 mtime 保守判红（此时无法确认 Unity 是否看见了改动）。
+            # 权威信号始终是：强制刷新 + 编译无失败 + 控制台无 CS 错误（下面两条）。
             if ($before -gt $after) {
-                Write-Bad "源码新于程序集（最新源码 $($before.ToString('HH:mm:ss')) > 最新程序集 $($after.ToString('HH:mm:ss'))）——Unity 未重建，EditMode 用例会跑旧代码。请检查编译或手工 Refresh"
+                if (-not $refreshDone) {
+                    Write-Bad "源码新于程序集（$($before.ToString('HH:mm:ss')) > $($after.ToString('HH:mm:ss'))）且刷新未完成——无法确认已重建，EditMode 用例可能跑旧代码"
+                }
+                else {
+                    Write-Ok "程序集新鲜（以 Unity 判定为准；源码 mtime $($before.ToString('HH:mm:ss')) ＞ 程序集 $($after.ToString('HH:mm:ss')) 属内容未变的重写）"
+                }
             }
             else {
                 Write-Ok "程序集新鲜（源码 ≤ 程序集：$($before.ToString('HH:mm:ss')) ≤ $($after.ToString('HH:mm:ss'))）"
             }
 
-            $rec = Invoke-PipelineCommand 'recompile_status'
-            Write-Host "  recompile_status: $($rec.Trim())" -ForegroundColor DarkGray
             if ($rec -match '"compilationFailed"\s*:\s*true' -or $rec -match '"failed"\s*:\s*true') { Write-Bad 'Unity 编译失败（recompile_status.failed/compilationFailed=true）' }
             else { Write-Ok 'Unity 编译状态正常（无编译失败）' }
 

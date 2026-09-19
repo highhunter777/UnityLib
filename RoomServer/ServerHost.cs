@@ -19,6 +19,12 @@ namespace RoomServer
     /// MVP 装配参数由 <see cref="RoomConfig"/> 提供（默认：端口 17777 / 房间 Room-A / 2 人房——M10 审计建议 2/3 收口）、
     /// **buildHash = <see cref="BuildHash.Value"/>**（源码内容哈希，两端不一 = 逻辑/协议版本不同 → 拒绝进房）。
     /// E3：连接 cookie 由 kcp2k V1.41 内建（白得）；per-IP 限速与重连票据见 <see cref="SessionManager"/>/<see cref="ReconnectService"/>。
+    ///
+    /// **传输解耦（2026-09-19 收口）**：构造参数是窄端口 <see cref="IRoomTransport"/>（原先吃具体类
+    /// `KcpTransportServer`，导致该接口只存在于注释里——"换传输 = 只写适配器"名不副实）。
+    /// 本类只用到窄端口的成员：3 个事件 + `Start/TickIncoming/TickOutgoing/SendTo/Dispose`
+    /// → 换传输框架（LiteNetLib/ENet/Ruffles…）只需新写一个适配器 + 装配一行。
+    /// **所有权**：宿主**接管**传入的传输（构造即 `Start`、`Dispose` 即释放）——调用方不必再管它。
     /// </summary>
     public sealed class ServerHost : IDisposable
     {
@@ -26,7 +32,7 @@ namespace RoomServer
         public const string ServerBuildHash = BuildHash.Value;
         public const long OpsIntervalMs = 5000;
 
-        private readonly KcpTransportServer _transport;
+        private readonly IRoomTransport _transport;   // 窄端口（可替换性第二刀，2026-09-19 收口）
         private readonly SessionManager _sessions = new SessionManager();
         private readonly Dictionary<string, Room> _rooms = new Dictionary<string, Room>();
         private readonly ReconnectService _reconnects = new ReconnectService();
@@ -41,7 +47,7 @@ namespace RoomServer
         public Room Room { get; }
         public Ops Ops => _ops;
 
-        public ServerHost(KcpTransportServer transport, RoomConfig config = null)
+        public ServerHost(IRoomTransport transport, RoomConfig config = null)
         {
             _transport = transport ?? throw new ArgumentNullException(nameof(transport));
             Config = config ?? RoomConfig.Default();
