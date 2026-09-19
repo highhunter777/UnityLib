@@ -63,6 +63,33 @@ namespace LiteNet.Tests
         }
 
         [Fact]
+        public void 房间号不符或缺失_拒绝进房()
+        {
+            var t = new FakeRoomTransport();
+            using var host = new ServerHost(t, new RoomConfig { Port = 33336, RoomId = "Room-A" });
+            t.RaiseConnected(1);
+
+            // ① 请求了别的房间（--room 可配后，这不能再靠"恰好只有一个房间"蒙过去）
+            t.RaiseData(1, PacketCodec.Encode(PacketType.Join,
+                new JoinRequest { RoomId = "Room-B", Token = "t", BuildHash = ServerHost.ServerBuildHash }));
+            Assert.Null(t.LastJoinAck(1));
+            Assert.Equal(1, host.Ops.Rejects);
+            Assert.Empty(host.Room.MemberIds());           // 连接存在但未占席位（拒绝的是进房，不是连接）
+
+            // ② 房间号缺失
+            t.RaiseData(1, PacketCodec.Encode(PacketType.Join,
+                new JoinRequest { RoomId = "", Token = "t", BuildHash = ServerHost.ServerBuildHash }));
+            Assert.Equal(2, host.Ops.Rejects);
+            Assert.Null(t.LastJoinAck(1));
+
+            // ③ 房间号正确 → 放行（红线只挡错房间，不挡正常进房）
+            t.RaiseData(1, PacketCodec.Encode(PacketType.Join,
+                new JoinRequest { RoomId = "Room-A", Token = "t", BuildHash = ServerHost.ServerBuildHash }));
+            Assert.NotNull(t.LastJoinAck(1));
+            Assert.Equal(2, host.Ops.Rejects);             // 计数不再增长
+        }
+
+        [Fact]
         public void 宿主持有所有权_Dispose释放传输()
         {
             var t = new FakeRoomTransport();

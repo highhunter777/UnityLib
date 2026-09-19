@@ -1,15 +1,22 @@
 namespace Tools.DisciplineScan
 {
-    /// <summary>一个扫描目标：源根（相对项目根）+ 该根启用的规则子集。</summary>
+    /// <summary>一个扫描目标：源根（相对项目根）+ 该根启用的规则子集 + 可选排除子根。</summary>
     public struct ScanTarget
     {
         public string Root;
         public LintRule[] Rules;
 
-        public ScanTarget(string root, LintRule[] rules)
+        /// <summary>从本目标排除的子根（相对项目根，前缀匹配；null/空 = 不排除）。
+        /// 用途：同一大根下混有不同领域的代码（如 LiteSim 的确定性 Core 与表现层 View）。</summary>
+        public string[] ExcludeRoots;
+
+        public ScanTarget(string root, LintRule[] rules) : this(root, rules, null) { }
+
+        public ScanTarget(string root, LintRule[] rules, string[] excludeRoots)
         {
             Root = root;
             Rules = rules;
+            ExcludeRoots = excludeRoots;
         }
     }
 
@@ -62,10 +69,18 @@ namespace Tools.DisciplineScan
             LintRule.R10ShellSendsBusinessPacket,
         };
 
+        /// <summary>LiteSim 下不适用确定性规则的表现层子根（View 跑引擎、有 GameObject，
+        /// 与 Sim 的定点/纯 C# 约束是两回事；只守 R6 原生协程）。</summary>
+        public static readonly string[] SimLayerExcludes =
+        {
+            "Assets/LiteSim/View",
+        };
+
         /// <summary>默认扫描目标集合。</summary>
         public static readonly ScanTarget[] Default =
         {
-            new ScanTarget("Assets/LiteSim", SimRules),
+            new ScanTarget("Assets/LiteSim", SimRules, SimLayerExcludes),
+            new ScanTarget("Assets/LiteSim/View", UnityRules),                                 // 表现层：只守 R6
             new ScanTarget("Assets/LiteNet", NetRules),
             new ScanTarget("Assets/LiteFramework/Scripts/Core", CoreRules),
             new ScanTarget("Assets/LiteFramework/Scripts/Unity", UnityRules),

@@ -6,6 +6,7 @@
         "LiteSim.Core.Editor",
         "LiteGame.Editor",
         "LiteGame.Runtime",
+        "UniTask",
         "UnityEngine.TestRunner",
         "UnityEditor.TestRunner",
         "Luban.Runtime",

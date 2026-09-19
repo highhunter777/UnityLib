@@ -183,8 +183,64 @@ namespace LiteGame
         public void SetAnchoredPosition(string name, Vector2 pos)
         {
             MarkDriver(name, ControlDriver.Command);
-            if (TryGet<RectTransform>(name, out var rt)) { rt.anchoredPosition = pos; return; }
-            throw new InvalidOperationException($"绑定索引[{name}] 无 RectTransform");
+            ResolveRect(name).anchoredPosition = pos;      // 走 ResolveRect：BindNode 不产 RectTransform，Get<RectTransform> 必抛
+        }
+
+        // ---- 批⑧ G20 动效口（《动效设计方案》附 A.3，P1）----
+        // 纪律：动效只写表现（透明度/位置），不携带任何判定；原语层的 SetUpdate(true)/SetLink(KillOnDisable)
+        // 已写死在 UiFx 里（UIClock 轨 + 界面隐藏即杀）。所有权：与 SetText 等同属命令式驱动。
+
+        /// <summary>脉冲：透明度快速呼吸两次（图标/红点提醒）。返回 true = tween 已创建。G20。</summary>
+        public bool Pulse(string name, float strength = 0.2f, float duration = 0.16f)
+        {
+            MarkDriver(name, ControlDriver.Command);
+            return UiFx.Pulse(ResolveGraphic(name), strength, duration) != null;
+        }
+
+        /// <summary>闪烁：一次性高亮回落。G20。</summary>
+        public bool Flash(string name, float duration = 0.3f)
+        {
+            MarkDriver(name, ControlDriver.Command);
+            return UiFx.Flash(ResolveGraphic(name), duration) != null;
+        }
+
+        /// <summary>位移入场：从 offset 相对位滑回原位。G20。</summary>
+        public bool Slide(string name, Vector2 offset, float duration = 0.25f)
+        {
+            MarkDriver(name, ControlDriver.Command);
+            return UiFx.Slide(ResolveRect(name), offset, duration) != null;
+        }
+
+        /// <summary>
+        /// 动效目标解析（G20 专用，**不走 <see cref="Get{T}"/>**）：索引里存的是 BindNode 自动检测到的组件，
+        /// 带 Button 的节点存的是 <see cref="Button"/>（AutoTypeCandidates 里 Button 优先于 Image）→ Get&lt;Graphic&gt; 会抛。
+        /// 三级回退：自身 Graphic → Button.targetGraphic → 自身/子级 Graphic。
+        /// 未命中 = KeyNotFoundException；命中但拿不到 Graphic = InvalidOperationException（与既有受控方法同语义）。
+        /// </summary>
+        public Graphic ResolveGraphic(string name)
+        {
+            if (!_controls.TryGetValue(name, out var c) || c == null)
+                throw new KeyNotFoundException($"绑定索引未命中:{name}——核对 BindNode.BindName / Designer 登记");
+            if (c is Graphic g) return g;
+            if (c is Button btn && btn.targetGraphic != null) return btn.targetGraphic;
+            var found = c.GetComponent<Graphic>() ?? c.GetComponentInChildren<Graphic>(true);
+            if (found != null) return found;
+            throw new InvalidOperationException(
+                $"绑定索引[{name}] 无 Graphic 组件（实得 {c.GetType().Name}）——动效目标必须是 Graphic");
+        }
+
+        /// <summary>
+        /// RectTransform 解析：UI 层级下任何组件的 transform 都是 RectTransform——
+        /// **不要用 Get&lt;RectTransform&gt;**（BindNode.ResolveTarget 不产 RectTransform，必抛）。
+        /// 手法同 <see cref="ShowFlyText"/>（`transform as RectTransform`）。
+        /// </summary>
+        public RectTransform ResolveRect(string name)
+        {
+            if (!_controls.TryGetValue(name, out var c) || c == null)
+                throw new KeyNotFoundException($"绑定索引未命中:{name}——核对 BindNode.BindName / Designer 登记");
+            if (c.transform is RectTransform rt) return rt;
+            throw new InvalidOperationException(
+                $"绑定索引[{name}] 的 transform 不是 RectTransform（实得 {c.transform.GetType().Name}）");
         }
 
         /// <summary>绑定通道内部写（已登记 Bound——不走命令式断言）。</summary>

@@ -31,7 +31,7 @@ namespace LiteGame
     /// </summary>
     public sealed class LuaBehaviourAdapter : IUIFormLogic
     {
-        /// <summary>ui-API 通用派发方法名（payload 表协议见 Dispatch；批⑦ 已补 G1/G3/G7/G10）。</summary>
+        /// <summary>ui-API 通用派发方法名（payload 表协议见 Dispatch；批⑦ 已补 G1/G3/G7/G10，批⑧ 补 G20 动效口）。</summary>
         private const string UiApiShim = @"
 local c = __ui_api_c
 __ui_api_c = nil
@@ -49,6 +49,9 @@ return {
     ShowToast = function(_, text) c('showToast', { text = text }) end,
     ShowBubble = function(_, name, text, duration) c('showBubble', { name = name, text = text, duration = duration or 1.5 }) end,
     ShowFlyText = function(_, name, text) c('showFlyText', { name = name, text = text }) end,
+    Pulse = function(_, name, strength, duration) c('pulse', { name = name, strength = strength or 1.2, duration = duration or 0.16 }) end,
+    Flash = function(_, name, duration) c('flash', { name = name, duration = duration or 0.3 }) end,
+    Slide = function(_, name, ox, oy, duration) c('slide', { name = name, ox = ox or 0, oy = oy or 0, duration = duration or 0.25 }) end,
 }";
 
         private readonly LuaEnv _env;
@@ -123,7 +126,8 @@ return {
         /// setText{name,text} / setVisible{name,visible} / setInteractable{name,on} /
         /// setProgress{name,value} / setProgressRange{name,cur,max} / setHp{name,cur,max} /
         /// startCountdown{name,seconds} / stopCountdown{name} / showToast{text} /
-        /// showBubble{name,text,duration} / showFlyText{name,text}。未识别方法静默忽略。</summary>
+        /// showBubble{name,text,duration} / showFlyText{name,text} /
+        /// pulse{name,strength,duration} / flash{name,duration} / slide{name,ox,oy,duration}。未识别方法静默忽略。</summary>
         private void Dispatch(string method, LuaTable payload)
         {
             if (_index == null || payload == null) return;
@@ -150,6 +154,21 @@ return {
                 case "showToast": _index.ShowToast(payload.Get<string, string>("text")); break;
                 case "showBubble": _index.ShowBubble(payload.Get<string, string>("name"), payload.Get<string, string>("text"), payload.Get<string, float>("duration")); break;
                 case "showFlyText": _index.ShowFlyText(payload.Get<string, string>("name"), payload.Get<string, string>("text")); break;
+                // ---- 批⑧ G20 动效口（《动效设计方案》附 A.3）----
+                case "pulse":
+                    _index.Pulse(payload.Get<string, string>("name"),
+                                 payload.Get<string, float>("strength"),
+                                 payload.Get<string, float>("duration"));
+                    break;
+                case "flash":
+                    _index.Flash(payload.Get<string, string>("name"),
+                                 payload.Get<string, float>("duration"));
+                    break;
+                case "slide":
+                    _index.Slide(payload.Get<string, string>("name"),
+                                 new Vector2(payload.Get<string, float>("ox"), payload.Get<string, float>("oy")),
+                                 payload.Get<string, float>("duration"));
+                    break;
             }
         }
 

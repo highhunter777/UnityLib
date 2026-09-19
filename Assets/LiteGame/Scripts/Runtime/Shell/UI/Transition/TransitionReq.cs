@@ -1,0 +1,58 @@
+using System;
+using Cysharp.Threading.Tasks;
+
+namespace LiteGame
+{
+    /// <summary>
+    /// 一次转场事务的可变状态 + 表现入口（§1.5.2 的 payload 载荷）。
+    ///
+    /// **为什么是引用类型**：<c>StageMachine</c> 的 <c>OnUpdate/OnLeave</c> 拿不到 payload（只有 <c>OnEnter</c> 有），
+    /// 而阶段对象是**无状态单例**（禁实例字段）→ 跨帧状态只能挂在 payload 携带的引用上，
+    /// 由 <see cref="UITransitionRunner"/> 在帧末 Tick 里轮询与收尾（机器只管"状态怎么切"）。
+    /// </summary>
+    public sealed class TransitionContext
+    {
+        public TransitionMode Mode;
+
+        /// <summary>离场界面（Push 时为 null）。</summary>
+        public UIForm Outgoing;
+
+        /// <summary>入场界面（Pop 时为 null）。</summary>
+        public UIForm Incoming;
+
+        /// <summary>超时兜底时长（§1.5.4 规则④）。</summary>
+        public float MaxDuration;
+
+        /// <summary>表现入口（由 Runner 按模式绑定：策略 / IReplaceTransition 合成）。</summary>
+        public Func<UniTask> Play;
+
+        /// <summary>表现已结束（含异常/取消；不是"播完"）。</summary>
+        public bool Done;
+
+        /// <summary>表现正常完成。</summary>
+        public bool Completed;
+
+        /// <summary>超时被强制收尾。</summary>
+        public bool TimedOut;
+
+        /// <summary>交互门已关（阶段 OnEnter 幂等守卫）。</summary>
+        public bool GateClosed;
+
+        /// <summary>事务已收尾（防重复收尾）。</summary>
+        public bool Finalized;
+
+        /// <summary>事务完成信号（调用方 await 它拿到 <see cref="TransitionOutcome"/>）。</summary>
+        public readonly UniTaskCompletionSource<TransitionOutcome> Tcs = new UniTaskCompletionSource<TransitionOutcome>();
+    }
+
+    /// <summary>转场迁移的 payload（只装一个引用：全部状态在 <see cref="TransitionContext"/> 里）。</summary>
+    public readonly struct TransitionReq
+    {
+        public readonly TransitionContext Ctx;
+
+        public TransitionReq(TransitionContext ctx)
+        {
+            Ctx = ctx;
+        }
+    }
+}

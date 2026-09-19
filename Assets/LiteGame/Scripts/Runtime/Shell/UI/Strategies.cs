@@ -21,6 +21,16 @@ namespace LiteGame
         UniTask PlayClose(UIForm form);
     }
 
+    /// <summary>
+    /// 可选：Replace（同组全屏互斥切换）的"两组并发"定制位（《UI扩展能力设计》§1.5.5）。
+    /// 未实现时壳按 <c>WhenAll(PlayClose(outgoing), PlayShow(incoming))</c> 合成——
+    /// 交叉淡入淡出 / 共享元素位移这类"必须一起算"的效果才需要实现本接口。
+    /// </summary>
+    public interface IReplaceTransition
+    {
+        UniTask PlayReplace(UIForm outgoing, UIForm incoming);
+    }
+
     /// <summary>出栈拦截（M4 §2.2）：Close 的统一闸口——返回键/程序关闭都经此处，可否决。</summary>
     public interface IPopInterceptor
     {

@@ -1178,6 +1178,66 @@ namespace LiteGame.Editor
                 return ok;
             }, ref fail);
 
+            // ---------- 批⑧：G20 动效口断言（EditMode 只验解析层与错误语义；DOTween 行为留 Play）----------
+            // 为何不在 EditMode 断言 tween 状态：① LiteGame.Editor.asmdef 不引用 DOTween.Modules（写不了 DOTween API）
+            // ② EditMode 无播放循环 tween 不推进，且 DOTween.Init() 会 spawn 对象污染当前打开的场景。
+
+            pass += Check("G20a：ResolveGraphic 对 Button 节点回退 targetGraphic（不抛）", () =>
+            {
+                var go = new GameObject("G20Btn", typeof(RectTransform), typeof(Image), typeof(Button));
+                var img = go.GetComponent<Image>();
+                var btn = go.GetComponent<Button>();
+                btn.targetGraphic = img;                              // 模拟 BindNode 对 Button 节点的检测结果（存的是 Button）
+                var index = new LiteGame.UIBindIndex(new Dictionary<string, Component> { ["Btn"] = btn });
+                var g = index.ResolveGraphic("Btn");
+                var ok = ReferenceEquals(g, img);
+                Kill(go);
+                return ok;
+            }, ref fail);
+
+            pass += Check("G20b：ResolveGraphic 直取 Graphic / ResolveRect 走 transform", () =>
+            {
+                var go = new GameObject("G20Icon", typeof(RectTransform), typeof(Image));
+                var img = go.GetComponent<Image>();
+                var index = new LiteGame.UIBindIndex(new Dictionary<string, Component> { ["Icon"] = img });
+                var ok = ReferenceEquals(index.ResolveGraphic("Icon"), img)
+                         && ReferenceEquals(index.ResolveRect("Icon"), (RectTransform)go.transform);
+                Kill(go);
+                return ok;
+            }, ref fail);
+
+            pass += Check("G20c：未命中 = KeyNotFoundException（与既有受控 API 同语义）", () =>
+            {
+                bool threw;
+                try { LiteGame.UIBindIndex.Empty.Pulse("Nope", 1.2f); threw = false; }
+                catch (KeyNotFoundException) { threw = true; }
+                catch { threw = false; }
+                return threw;
+            }, ref fail);
+
+            pass += Check("G20d：命中但无 Graphic = InvalidOperationException", () =>
+            {
+                var go = new GameObject("G20Cg", typeof(RectTransform), typeof(CanvasGroup));
+                var index = new LiteGame.UIBindIndex(new Dictionary<string, Component> { ["X"] = go.GetComponent<CanvasGroup>() });
+                bool threw;
+                try { index.Flash("X", 0.3f); threw = false; }
+                catch (InvalidOperationException) { threw = true; }
+                catch { threw = false; }
+                Kill(go);
+                return threw;
+            }, ref fail);
+
+            pass += Check("G20e：Pulse/Flash/Slide 真实调用不抛（DOTween 仅 Play 态成立）", () =>
+            {
+                var go = new GameObject("G20Fx", typeof(RectTransform), typeof(Image));
+                var index = new LiteGame.UIBindIndex(new Dictionary<string, Component> { ["Fx"] = go.GetComponent<Image>() });
+                if (!Application.isPlaying) { Kill(go); return true; } // 同 TabGroup 先例：EditMode 不跑 tween
+                var ok = index.Pulse("Fx", 1.2f) && index.Flash("Fx", 0.3f)
+                         && index.Slide("Fx", new Vector2(0f, 40f), 0.25f);
+                Kill(go);
+                return ok;
+            }, ref fail);
+
             return (pass, fail);
         }
 

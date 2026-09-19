@@ -116,13 +116,27 @@ namespace RoomServer
             }
         }
 
-        /// <summary>Join 信令：token 非空 + buildHash 必须等于服务器版本（版本红线）→ 分配玩家号 → JoinAck + 满员即 StartGame。</summary>
+        /// <summary>
+        /// Join 信令：token 非空 + **房间号一致** + buildHash 必须等于服务器版本（版本红线）
+        /// → 分配玩家号 → JoinAck + 满员即 StartGame。
+        ///
+        /// 房间号校验（2026-09-19 审查收紧）：原先**完全忽略** `JoinRequest.RoomId`——MVP 单房间下无害，
+        /// 但既然 `--room` 已是可配项，"请求 A 房却静默进 B 房"就成了不可解释的客户端体验 ✗。
+        /// 现在房间号不符（或缺失）直接拒绝：错误必须显式，不能靠"恰好只有一个房间"。
+        /// </summary>
         private void HandleJoin(Session session, JoinRequest join)
         {
             if (session.PlayerId >= 0) return;                              // 重复 Join 忽略
             if (string.IsNullOrEmpty(join.Token))                            // token 红线：空即拒绝
             {
                 Reject(session, "token 缺失");
+                return;
+            }
+            if (join.RoomId != Room.RoomId)                                  // 房间号红线：不符/缺失即拒绝
+            {
+                Reject(session, string.IsNullOrEmpty(join.RoomId)
+                    ? $"房间号缺失（本服房间：{Room.RoomId}）"
+                    : $"房间号不符：{join.RoomId} != {Room.RoomId}");
                 return;
             }
             if (join.BuildHash != ServerBuildHash)                           // 版本红线：Sim/协议版本比对不符拒绝进房

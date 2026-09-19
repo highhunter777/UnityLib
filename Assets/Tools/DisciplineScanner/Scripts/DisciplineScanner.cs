@@ -176,8 +176,10 @@ namespace Tools.DisciplineScan
             return result;
         }
 
-        /// <summary>扫描一个源根目录（相对 <paramref name="projectRoot"/>）下的全部 *.cs。</summary>
-        public static List<LintViolation> ScanRoot(string projectRoot, string relativeRoot, LintRule[] rules)
+        /// <summary>扫描一个源根目录（相对 <paramref name="projectRoot"/>）下的全部 *.cs。
+        /// <paramref name="excludeRoots"/> 内的子根被跳过（相对路径前缀匹配，用于同一大根下的异域子目录）。</summary>
+        public static List<LintViolation> ScanRoot(string projectRoot, string relativeRoot, LintRule[] rules,
+            string[] excludeRoots = null)
         {
             var result = new List<LintViolation>();
             string root = Path.Combine(projectRoot, relativeRoot);
@@ -190,9 +192,26 @@ namespace Tools.DisciplineScan
                 string normalized = files[i].Replace('\\', '/');
                 if (IsExcluded(normalized)) continue;
                 string display = RelativeDisplay(projectRoot, normalized);
+                if (IsUnderExcludedRoot(display, excludeRoots)) continue;
                 result.AddRange(ScanText(display, File.ReadAllText(files[i]), rules));
             }
             return result;
+        }
+
+        /// <summary>相对路径是否落在任一排除子根之下（前缀匹配 + 路径边界，防 "View" 误匹配 "ViewXxx"）。</summary>
+        private static bool IsUnderExcludedRoot(string relativePath, string[] excludeRoots)
+        {
+            if (excludeRoots == null || excludeRoots.Length == 0) return false;
+            for (int i = 0; i < excludeRoots.Length; i++)
+            {
+                string r = excludeRoots[i];
+                if (string.IsNullOrEmpty(r)) continue;
+                r = r.Replace('\\', '/').TrimEnd('/');
+                if (relativePath.StartsWith(r, StringComparison.Ordinal)
+                    && (relativePath.Length == r.Length || relativePath[r.Length] == '/'))
+                    return true;
+            }
+            return false;
         }
 
         /// <summary>按 <see cref="ScanTargets.Default"/> 扫描全部目标（含 <see cref="ScanTargets.MetaRoots"/> 的 .meta），返回「目标 → 违规」。</summary>
@@ -202,7 +221,7 @@ namespace Tools.DisciplineScan
             ScanTarget[] targets = ScanTargets.Default;
             for (int t = 0; t < targets.Length; t++)
             {
-                List<LintViolation> hits = ScanRoot(projectRoot, targets[t].Root, targets[t].Rules);
+                List<LintViolation> hits = ScanRoot(projectRoot, targets[t].Root, targets[t].Rules, targets[t].ExcludeRoots);
                 for (int i = 0; i < hits.Count; i++)
                     result.Add(new KeyValuePair<string, LintViolation>(targets[t].Root, hits[i]));
             }

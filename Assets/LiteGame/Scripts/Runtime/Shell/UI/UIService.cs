@@ -10,6 +10,7 @@ namespace LiteGame
     /// <summary>
     /// UI 壳服务（M4 §2.1/§2.2/§2.3，手册步骤 1/2/3）：栈 / 层级组 / 七态机 / 实例化管线
     /// + 策略三件（构造注入，默认实现壳内自带——壳零策略硬编码）
+    /// + 转场编排层（§1.5：状态机 + 排队 1 + 超时兜底 + 壳统一管交互门；策略只是"表现体"）
     /// + 逻辑解析器（LuaBehaviourAdapter 接线；解析失败降级 NullLogic）。
     /// 薄壳 = DI 注册的普通服务（设计方案 §1.3），ProcedureLaunch 注册、装配点构造。
     /// 驱动：ITickable（GameEntry 统一喂）——仅 Active 态转发 OnUpdate；
@@ -27,18 +28,23 @@ namespace LiteGame
         private readonly HashSet<int> _staleLogic = new HashSet<int>();   // 逻辑待更新（运行期增量重填，§2.3）
         private readonly UILayerGroup[] _groups;
         private readonly Transform _root;
-        private readonly ITransitionStrategy _transition;
+        private readonly UITransitionRunner _transitions;                  // 转场编排层（§1.5，不注册 ITickable）
         private readonly IPopInterceptor _pop;
         private readonly Func<UIFormInfo, IUIFormLogic> _logicResolver;
 
+        /// <param name="replaceTransition">可选：Replace 的"两组并发"定制位；null = 壳合成 WhenAll(Close, Show)。</param>
+        /// <param name="transitionMaxDuration">转场超时兜底（§1.5.4 规则④），默认 2s。</param>
         public UIService(UIFormCatalog catalog,
             ILayerStrategy layerStrategy = null,
             ITransitionStrategy transitionStrategy = null,
             IPopInterceptor popInterceptor = null,
-            Func<UIFormInfo, IUIFormLogic> logicResolver = null)
+            Func<UIFormInfo, IUIFormLogic> logicResolver = null,
+            IReplaceTransition replaceTransition = null,
+            float transitionMaxDuration = UITransitionRunner.DefaultMaxDuration)
         {
             _catalog = catalog ?? throw new ArgumentNullException(nameof(catalog));
-            _transition = transitionStrategy ?? new FadeSlideTransition();
+            _transitions = new UITransitionRunner(transitionStrategy ?? new FadeSlideTransition(),
+                                                  replaceTransition, transitionMaxDuration);
             _pop = popInterceptor ?? new DefaultPopInterceptor();
             _logicResolver = logicResolver;
 
@@ -96,7 +102,19 @@ namespace LiteGame
                 group.Stack.Push(form);
                 form.EnterActiveFromLoading(data);
                 if (info.FullScreen) RecomputeCovering();
-                await PlayTransitionShow(form, ct);
+
+                // 转场（§1.5.3 模式由语义推导）：同组已有 Active 全屏 → 切换语义（Replace）
+                UIForm outgoing = null;
+                var mode = TransitionMode.Push;
+                if (info.FullScreen)
+                {
+                    outgoing = FindSameGroupFullScreen(group, form);
+                    if (outgoing != null) mode = TransitionMode.Replace;
+                }
+                await _transitions.PlayAsync(mode, outgoing, form);
+                if (outgoing != null && outgoing.State == UIFormState.Active)
+                    CloseFormInternal(outgoing);            // 切换：旧界面在转场收尾后关闭
+
                 Log.Info($"UIForm[{formId}] 打开（{group.Name}@{form.Canvas.sortingOrder}）", "UI");
                 return form;
             }
@@ -127,17 +145,13 @@ namespace LiteGame
 
             try
             {
-                await PlayTransitionClose(form, ct: default);
+                await _transitions.PlayAsync(TransitionMode.Pop, form, null);
                 if (form.State != UIFormState.Active)
                 {
                     Log.Info($"UIForm[{formId}] 关闭中止（转场期间状态已变为 {form.State}）", "UI");
                     return;
                 }
-                form.EnterClosing();
-                GetGroup(form.Info.Layer).Stack.Remove(form);
-                form.Recycle();
-                SwapIfStale(form);                        // OnHide 已跑完 → 此刻换表才安全（顺序不能反）
-                if (form.Info.FullScreen) RecomputeCovering();
+                CloseFormInternal(form);
                 Log.Info($"UIForm[{formId}] 关闭", "UI");
             }
             finally
@@ -281,23 +295,31 @@ namespace LiteGame
             }
         }
 
-        /// <summary>转场容错等待：转策略抛异常只记日志（表现层故障不阻塞七态迁移——原则"动效不携带判定"）。</summary>
-        private async UniTask PlayTransitionShow(UIForm form, CancellationToken ct)
+        /// <summary>本组内查找"仍 Active 的全屏界面"（§1.5.3 Replace 推导用；排除刚入栈的新界面）。</summary>
+        private UIForm FindSameGroupFullScreen(UILayerGroup group, UIForm exclude)
         {
-            try { await _transition.PlayShow(form); }
-            catch (Exception ex) when (ex is not OperationCanceledException)
+            var open = group.Stack.Open;
+            for (int i = open.Count - 1; i >= 0; i--)
             {
-                Log.Error($"入场转场失败[{form.Id}]:{ex.Message}", "UI");
+                var f = open[i];
+                if (f == null || ReferenceEquals(f, exclude)) continue;
+                if (f.State == UIFormState.Active && f.Info.FullScreen) return f;
             }
+            return null;
         }
 
-        private async UniTask PlayTransitionClose(UIForm form, CancellationToken ct)
+        /// <summary>
+        /// 落库关闭：EnterClosing → 出栈 → 落池 → 换表 → 重算遮盖。
+        /// 由 <see cref="CloseAsync"/>（Pop 转场收尾后）与 Replace 自动关闭旧界面共用。
+        /// 顺序不能反：OnHide 跑完前换表会让界面"一半旧一半新"（§2.3）。
+        /// </summary>
+        private void CloseFormInternal(UIForm form)
         {
-            try { await _transition.PlayClose(form); }
-            catch (Exception ex) when (ex is not OperationCanceledException)
-            {
-                Log.Error($"离场转场失败[{form.Id}]:{ex.Message}", "UI");
-            }
+            form.EnterClosing();
+            GetGroup(form.Info.Layer).Stack.Remove(form);
+            form.Recycle();
+            SwapIfStale(form);
+            if (form.Info.FullScreen) RecomputeCovering();
         }
 
         // ---- ITickable / IModuleStats ----
@@ -306,6 +328,10 @@ namespace LiteGame
         {
             foreach (var form in _forms.Values)
                 if (form.State == UIFormState.Active) form.RaiseUpdate(deltaTime);
+
+            // 转场推进放**真帧末**：既让界面 OnUpdate 里发起的请求同帧末生效，
+            // 也保证收尾时同步恢复的续体（EnterClosing/Recycle）不会撞上面的字典枚举。
+            _transitions.Tick(deltaTime);
         }
 
         public string StatsName => "UI";
@@ -330,6 +356,8 @@ namespace LiteGame
             into["池中"] = recycled.ToString();
             into["加载中"] = loading.ToString();
             into["待更新"] = StaleLogicCount.ToString();
+            into["转场"] = _transitions.Phase.ToString();
+            into["转场队列"] = _transitions.QueueLength.ToString();
         }
     }
 }
