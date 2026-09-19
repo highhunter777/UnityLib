@@ -47,6 +47,7 @@ namespace RoomServer
             _transport = transport ?? throw new ArgumentNullException(nameof(transport));
             _rooms[DefaultRoomId] = Room;                     // MVP：预置单房间注册（Pump 遍历 _rooms 驱动权威步）
             Room.SendTo = SendToSession;
+            Room.Broadcaster.SendTo = SendToSession;   // 广播器与 Room 共用同一发送出口（2026-09-19 拆分接线）
             Room.OnInputAccepted = (session, message) => { _ops.InputPackets++; _ops.AckObserved++; };
             _transport.OnConnected += OnTransportConnected;
             _transport.OnData += OnTransportData;
