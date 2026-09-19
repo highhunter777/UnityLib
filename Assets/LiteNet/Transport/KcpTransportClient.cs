@@ -8,7 +8,7 @@ namespace LiteNet.Transport
     /// 连接完成是 Tick 驱动的异步过程（握手经 kcp2k 内建 hello/cookie）：Connect 后调用方需持续 Tick 直至 OnConnected。
     /// LiteGame 侧的 KcpNetworkService : INetworkService 桥接以本类为底（M10 批④；LiteNet 禁 UniTask——异步语义由桥接层翻译）。
     /// </summary>
-    public sealed class KcpTransportClient : IDisposable
+    public sealed class KcpTransportClient : IClientTransport
     {
         private KcpClient _client;
         private readonly KcpConfig _config;

@@ -27,6 +27,7 @@ namespace LiteNet.Tests
         public long MismatchReports;      // 上报的和解次数（和解率分子）
         public long InputsSent;
 
+        private readonly KcpTransportClient _transport;   // 本 harness 创建并拥有（生产路径由 KcpNetworkService 持有）
         private RollbackSim _sim;
         private SimMapData _map;
         private readonly Queue<SimInputFrame> _pending = new Queue<SimInputFrame>();
@@ -38,6 +39,7 @@ namespace LiteNet.Tests
         {
             ClientName = name;
             _map = map;
+            _transport = transport;
             Client = new RoomClient(transport);
             Client.OnStartGame += OnStartGame;
             Client.OnSnapshot += OnSnapshot;
@@ -80,13 +82,7 @@ namespace LiteNet.Tests
             var local = _pending.Count > 0 ? _pending.Dequeue() : default;
             local.EntityId = LocalEntityId;
 
-            Client.SendInput(_sim.State.Frame + 1, new Proto.InputFrame
-            {
-                EntityId = local.EntityId,
-                MoveX = local.MoveX, MoveZ = local.MoveZ,
-                AimX = local.AimX, AimZ = local.AimZ,
-                Buttons = local.Buttons,
-            }, viewFrame: 0);
+            Client.SendInput(_sim.State.Frame + 1, local, viewFrame: 0);
             InputsSent++;
 
             Sim.Tick(realDelta);
@@ -138,6 +134,14 @@ namespace LiteNet.Tests
             return restored;
         }
 
-        public void Dispose() => Client.Dispose();
+        /// <summary>
+        /// 释放客户端与**其传输**：本 harness 是传输的创建者（生产路径里 KcpNetworkService 才是所有者，
+        /// 所以 `RoomClient.Dispose` 不再代管传输——见其类注释）。
+        /// </summary>
+        public void Dispose()
+        {
+            Client.Dispose();
+            _transport.Dispose();
+        }
     }
 }

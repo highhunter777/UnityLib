@@ -321,7 +321,7 @@ namespace LiteFramework.Tests
             f.Log.Clear();
             f.Machine.Reset();
             Assert.Equal(new[] { "-Result", "-Battle", "-Main" }, f.Log);   // 深 → 浅（与 enter 的浅→深对称）
-            Assert.Equal(0, f.Machine.ActivePath.Count);
+            Assert.Empty(f.Machine.ActivePath);
             Assert.False(f.Machine.Started);
             Assert.False(f.Machine.HasPending);
 
