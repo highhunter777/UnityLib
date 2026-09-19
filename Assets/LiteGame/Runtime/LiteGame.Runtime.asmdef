@@ -4,6 +4,9 @@
     "references": [
         "LiteFramework.Core",
         "LiteFramework.Unity",
+        "LiteNet",
+        "LiteSim.Core",
+        "LiteSim.View",
         "Luban.Runtime",
         "Luban.Tables",
         "UniTask",
@@ -11,9 +14,7 @@
         "xLuaMain",
         "DOTween.Modules",
         "Unity.TextMeshPro",
-        "LiteCodeGen.Runtime",
-        "LiteSim.Core",
-        "LiteSim.View"
+        "LiteCodeGen.Runtime"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],
