@@ -25,10 +25,10 @@ namespace LiteSim
                 // 零向量不会命中任何目标——采集侧契约要求非零）
                 float dx = inputs[i].AimX;
                 float dz = inputs[i].AimZ;
-                float originY = shooter.Pos.Y + SimConfig.HitscanHeight * 0.5f;
+                float originY = shooter.Pos.Y + CombatConfig.HitscanHeight * 0.5f;
 
                 int hitSlot = -1;
-                float hitT = SimConfig.HitscanRange;
+                float hitT = CombatConfig.HitscanRange;
                 for (int j = 0; j < SimConfig.MaxEntities; j++)
                 {
                     if (j == shooterSlot) continue; // lint-allow R3（整型等值，非浮点精度比较）
@@ -38,7 +38,7 @@ namespace LiteSim
 
                     // 圆柱 y 区间：射线在 [tgt.Pos.Y, tgt.Pos.Y + Height] 内才算
                     if (originY < tgt.Pos.Y) continue;
-                    if (originY > tgt.Pos.Y + SimConfig.HitscanHeight) continue;
+                    if (originY > tgt.Pos.Y + CombatConfig.HitscanHeight) continue;
 
                     // XZ 平面射线-圆求交：m = C-O；b = m·D（前向投影）；c2 = |m|² - b²（垂距平方）
                     // 融合安全：`a*b + c*d` 形态一律走 SimMath 双精度累积件（Mono 会自动 FMA，.NET 不会）
@@ -47,7 +47,7 @@ namespace LiteSim
                     float b = SimMath.MulAdd2(mx, dx, mz, dz);
                     if (b < 0f) continue; // 目标在身后
 
-                    float r2 = SimConfig.HitscanRadius * SimConfig.HitscanRadius;
+                    float r2 = CombatConfig.HitscanRadius * CombatConfig.HitscanRadius;
                     float c2 = SimMath.MulAddSub3(mx, mx, mz, mz, b, b);
                     if (c2 > r2) continue; // 垂距超出圆柱半径
 
@@ -67,9 +67,10 @@ namespace LiteSim
                 {
                     ref EntitySlot hit = ref s.Entities[hitSlot];
 
-                    // 伤害浮动 ±1（消费 RngState——局部副本推进后写回，SimRng 使用约定）
+                    // 伤害浮动 ±DamageSpread（消费 RngState——局部副本推进后写回，SimRng 使用约定）；
+                    // base/spread 走 CombatConfig（2026-09-19 数值解耦：原内嵌表达式参数化）
                     var rng = new SimRng(s.RngState);
-                    int dmg = SimConfig.BaseDamage + rng.NextRange(0, 3) - 1;
+                    int dmg = CombatConfig.BaseDamage + rng.NextRange(-CombatConfig.DamageSpread, CombatConfig.DamageSpread + 1);
                     s.RngState = rng.State;
 
                     var hitPos = new SimVector3(

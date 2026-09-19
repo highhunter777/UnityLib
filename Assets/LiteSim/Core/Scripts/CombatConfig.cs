@@ -1,0 +1,61 @@
+namespace LiteSim
+{
+    /// <summary>
+    /// 玩法数值单源（2026-09-19 解耦定案：**手感参数与协议常量分离**——本类只装"一局战斗怎么打"，
+    /// SimConfig 只装"确定性架构怎么搭"；两者生命周期不同：前者可调表迭代，后者编译期锁死）。
+    ///
+    /// - 默认值 = M8 灰盒实测值（原 SimConfig 玩法段迁移，消费点改名同步）；
+    /// - Luban 接缝：`tb_combat_num` 表设计见《玩法数值解耦审查与Luban表设计》——`LoadFrom` 预留装载口，
+    ///   表链路落地后由启动装配调用（表缺失 = 兜底值 + 告警）；装载后数值两端一致（同表同 bin）。
+    /// - 确定性：全部 float/int 常量语义不变（位级确定的输入，无运算）。
+    /// </summary>
+    public static class CombatConfig
+    {
+        // ---- 移动 ----
+
+        /// <summary>玩家移动速度（m/s，2.5D XZ 平面）。</summary>
+        public static float MoveSpeed { get; private set; } = 5f;
+
+        /// <summary>重力加速度（m/s²，y 轴向下，§3.5）。</summary>
+        public static float Gravity { get; private set; } = -20f;
+
+        // ---- 射击 ----
+
+        /// <summary>hitscan 射程（m）。</summary>
+        public static float HitscanRange { get; private set; } = 100f;
+
+        /// <summary>命中圆柱半径（m）。</summary>
+        public static float HitscanRadius { get; private set; } = 0.5f;
+
+        /// <summary>命中圆柱高度（m，区间 [Pos.Y, Pos.Y + Height]）。</summary>
+        public static float HitscanHeight { get; private set; } = 2f;
+
+        // ---- 伤害 ----
+
+        /// <summary>基础伤害（命中值 = BaseDamage ± DamageSpread 内浮动）。</summary>
+        public static int BaseDamage { get; private set; } = 25;
+
+        /// <summary>伤害浮动幅度（命中值 = Base + rng.NextRange(-Spread, Spread+1)；0 = 无浮动）。
+        /// ——自原 `+ rng.NextRange(0, 3) - 1` 表达式提取，语义等价 ±1。</summary>
+        public static int DamageSpread { get; private set; } = 1;
+
+        /// <summary>出生 HP（实体初始生命；M11 实体表化前的过渡位）。</summary>
+        public const int SpawnHp = 100;
+
+        /// <summary>
+        /// Luban 表装载接缝（批⑤/M11 接线）：tb_combat_num 读取后调用，逐字段覆写。
+        /// 当前表链路未落地——保留默认值；参数未做合法性钳制（来源是策划表而非外部输入）。
+        /// </summary>
+        public static void LoadFrom(float moveSpeed, float gravity, float hitscanRange, float hitscanRadius,
+            float hitscanHeight, int baseDamage, int damageSpread)
+        {
+            MoveSpeed = moveSpeed;
+            Gravity = gravity;
+            HitscanRange = hitscanRange;
+            HitscanRadius = hitscanRadius;
+            HitscanHeight = hitscanHeight;
+            BaseDamage = baseDamage;
+            DamageSpread = damageSpread;
+        }
+    }
+}

@@ -20,7 +20,7 @@ namespace LiteSim
                 e.Pos.Z += e.Vel.Z * SimConfig.Dt;
 
                 // y 轴：重力积分 + 地面钳制（§3.5 原式）
-                e.Vel.Y += SimConfig.Gravity * SimConfig.Dt;
+                e.Vel.Y += CombatConfig.Gravity * SimConfig.Dt;
                 e.Pos.Y += e.Vel.Y * SimConfig.Dt;
                 if (e.Pos.Y <= map.GroundY)
                 {

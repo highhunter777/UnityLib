@@ -144,7 +144,7 @@ namespace LiteGame
                 switch (e.Kind)
                 {
                     case FrameEventKind.Fire:
-                        _lastFireOrigin = new Vector3(e.Pos.X, e.Pos.Y + SimConfig.HitscanHeight * 0.5f, e.Pos.Z);
+                        _lastFireOrigin = new Vector3(e.Pos.X, e.Pos.Y + CombatConfig.HitscanHeight * 0.5f, e.Pos.Z);
                         _firePending = true;
                         break;
 
@@ -171,7 +171,7 @@ namespace LiteGame
             if (_firePending) // 本帧开火未命中 → 画一条到射程终点的未命中线
             {
                 var dir = new Vector3(Mathf.Cos(_lastYaw), 0f, Mathf.Sin(_lastYaw));
-                PushVis(_lastFireOrigin, _lastFireOrigin + dir * SimConfig.HitscanRange, false);
+                PushVis(_lastFireOrigin, _lastFireOrigin + dir * CombatConfig.HitscanRange, false);
                 _firePending = false;
             }
         }
@@ -220,9 +220,9 @@ namespace LiteGame
                 bool isPlayer = e.Id == _playerId;
 
                 Gizmos.color = isPlayer ? Color.green : new Color(1f, 0.5f, 0.2f);
-                Gizmos.DrawWireSphere(pos + Vector3.up * (SimConfig.HitscanHeight * 0.5f), SimConfig.HitscanRadius);
-                Gizmos.DrawLine(pos, pos + Vector3.up * SimConfig.HitscanHeight);
-                Vector3 mid = pos + Vector3.up * (SimConfig.HitscanHeight * 0.5f);
+                Gizmos.DrawWireSphere(pos + Vector3.up * (CombatConfig.HitscanHeight * 0.5f), CombatConfig.HitscanRadius);
+                Gizmos.DrawLine(pos, pos + Vector3.up * CombatConfig.HitscanHeight);
+                Vector3 mid = pos + Vector3.up * (CombatConfig.HitscanHeight * 0.5f);
                 Gizmos.DrawRay(mid, new Vector3(Mathf.Cos(e.Yaw), 0f, Mathf.Sin(e.Yaw)) * 2f);
             }
 

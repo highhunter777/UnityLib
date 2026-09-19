@@ -42,25 +42,10 @@ namespace LiteSim
         /// <summary>全局逻辑状态（比分/波次等）字节数。</summary>
         public const int GlobalsBytes = 256;
 
-        // ---- M8 系统链数值（#6 常量集中：禁止散落魔数；§2.4 最小版玩法参数）----
-
-        /// <summary>玩家移动速度（m/s，2.5D XZ 平面）。</summary>
-        public const float MoveSpeed = 5f;
-
-        /// <summary>重力加速度（m/s²，y 轴向下，§3.5）。</summary>
-        public const float Gravity = -20f;
-
-        /// <summary>hitscan 射程（m）。</summary>
-        public const float HitscanRange = 100f;
-
-        /// <summary>命中圆柱半径（m）。</summary>
-        public const float HitscanRadius = 0.5f;
-
-        /// <summary>命中圆柱高度（m，区间 [Pos.Y, Pos.Y + Height]）。</summary>
-        public const float HitscanHeight = 2f;
-
-        /// <summary>基础伤害（ShootingSystem 经 RngState 浮动 ±1）。</summary>
-        public const int BaseDamage = 25;
+        // ---- 玩法数值已迁出（2026-09-19 解耦：手感参数与协议常量分离）----
+        // MoveSpeed/Gravity/Hitscan*/BaseDamage/DamageSpread → CombatConfig（static 属性 + Luban
+        // tb_combat_num 装载接缝，表设计见 Docs/玩法数值解耦审查与Luban表设计.md）。
+        // 本类只保留确定性架构常量——协议/位布局/回滚深度这类"改了=两端不一致"的锁死项。
 
         // ---- M10 广播 / AOI 旋钮（《M10实施指导》决策 7/13；**初始值**，M10 实施时按实测校准）----
 

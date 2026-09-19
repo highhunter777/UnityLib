@@ -16,8 +16,8 @@ namespace LiteSim
                 if (!s.TryResolve(inputs[i].EntityId, out int slotIndex)) continue;
 
                 ref EntitySlot e = ref s.Entities[slotIndex];
-                e.Vel.X = inputs[i].MoveX * SimConfig.MoveSpeed;
-                e.Vel.Z = inputs[i].MoveZ * SimConfig.MoveSpeed;
+                e.Vel.X = inputs[i].MoveX * CombatConfig.MoveSpeed;
+                e.Vel.Z = inputs[i].MoveZ * CombatConfig.MoveSpeed;
                 // Yaw = atan2(dz, dx)：派生自瞄准方向（查表，确定性；零向量按 SimTrig 定义值处理——
                 // 采集侧契约要求非零，违约不会崩，只是朝向退化）
                 e.Yaw = SimTrig.Atan2(inputs[i].AimZ, inputs[i].AimX);

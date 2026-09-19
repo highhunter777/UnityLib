@@ -64,7 +64,7 @@ namespace LiteNet.Tests
 
             // 服务器回溯目标帧 = reportedView − InterpFrames = ack（= 玩家真正渲染的那一帧）
             int expectedTargetFrame = ack;
-            float targetSeen = 20f + expectedTargetFrame * SimConfig.MoveSpeed * SimConfig.Dt;
+            float targetSeen = 20f + expectedTargetFrame * CombatConfig.MoveSpeed * SimConfig.Dt;
             float targetNowExpected = targetNow;
 
             LagCompensator.Outcome outcome = lag.CompensateFire(0, state.Entities[0].Id, reportedView, ack);
@@ -84,7 +84,7 @@ namespace LiteNet.Tests
                 $"回溯应使用更早（更近）的历史位置：seen={seenDistance:F3} now={nowDistance:F3}");
             Assert.True(nowDistance - seenDistance > 0.5f,
                 $"回溯位置与当前位置应有可观测差距：Δ={nowDistance - seenDistance:F3}（期望 ≈0.75）");
-            Assert.True(seenDistance < SimConfig.HitscanRange, "历史位置应在射程内");
+            Assert.True(seenDistance < CombatConfig.HitscanRange, "历史位置应在射程内");
 
             // 命令缓冲里必须有一条 Damage，且伤害目标 = 目标实体（命中判定确实在历史态上做出）
             bool damageFound = false;
