@@ -35,6 +35,7 @@ namespace LiteNet.Tests
             var room = new Room("TestRoom");
             var capture = new Capture();
             room.SendTo = (session, type, msg, reliable) => capture.Sent.Add((session, type, msg, reliable));
+            room.Broadcaster.SendTo = room.SendTo;   // 广播面拆分后共用同一捕获（快照经 Broadcaster 发出）
 
             var s1 = new Session(1, 0);
             var s2 = new Session(2, 0);
