@@ -33,8 +33,8 @@ jobs:
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '8.0.28'   # 固定精确版本——'8.0.x' 浮动解析在 2026-09 起间歇失败（Setup 步骤红），
-          cache: false                # NuGet 缓存同样间歇损坏；restore 成本低，关闭换稳定
+          dotnet-version: '8.0.x'
+          cache: false                # NuGet 缓存间歇损坏（Setup 红根因之一）；关闭换稳定
 
       - name: 基线防篡改校验（仅 ubuntu 跑一次）
         if: matrix.os == 'ubuntu-latest'
@@ -124,7 +124,7 @@ jobs:
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '8.0.28'
+          dotnet-version: '8.0.x'
 
       - name: 全量对跑（5 分钟长跑，M10_LONGRUN=1）
         env:
