@@ -10,8 +10,9 @@ import os
 import re
 
 DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "Data")
+# 2026-09-19 目录重排跟进：LiteGame/Scripts/{Runtime,Editor,DevHUD} 已平铺为 LiteGame/{Runtime,Editor,DevHUD}
 OUT_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                        "..", "Assets", "LiteGame", "Scripts", "Runtime", "Shell", "Bridge", "Generated", "LuaKeys.g.cs")
+                        "..", "Assets", "LiteGame", "Runtime", "Shell", "Bridge", "Generated", "LuaKeys.g.cs")
 
 PATH_FIELDS = ("lua_path", "entry")               # 注册表路径列字段名
 ROOTS = ("UI", "Content", "Strategies")           # §4.4 三个固定根

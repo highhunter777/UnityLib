@@ -19,7 +19,7 @@ namespace LiteGame.Editor
     /// </summary>
     public static class WidgetPrefabBuilder
     {
-        private const string OutDir = "Assets/LiteGame/UI/Widgets";
+        private const string OutDir = "Assets/UI/Widgets";   // 2026-09-19：UI 已从 LiteGame 迁到顶层 Assets/UI
 
         [MenuItem("LiteGame/UI/构建控件模板 Prefabs")]
         private static void BuildAll()
@@ -807,7 +807,7 @@ namespace LiteGame.Editor
     /// 自动化清单口径同《测试开发方案》：可代码驱动的行为面才断言（指针交互动画不在范围）。</summary>
     public static class WidgetPrefabCheck
     {
-        private const string Dir = "Assets/LiteGame/UI/Widgets";
+        private const string Dir = "Assets/UI/Widgets";    // 2026-09-19：UI 已从 LiteGame 迁到顶层 Assets/UI
         private const string Tag = "WidgetTemplateCheck";
 
         [MenuItem("LiteGame/UI/校验控件模板")]

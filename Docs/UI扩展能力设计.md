@@ -171,6 +171,10 @@ public interface IReplaceTransition
 | 转场中禁交互 | 参与界面 `blocksRaycasts=false`；结束恢复；不依赖策略实现 |
 | 完成事件 | Lua 收到的 `begin/end` 成对，`mode` 与调用相符 |
 
+> **落地状态（2026-09-19）**：编排层已实现——`Shell/UI/Transition/`（`UITransitionRunner` = `StageMachine<TransitionId,TransitionReq>` + 待办队列 1 + 超时兜底 + 壳统一管交互门）+ `Strategies.cs` 加 `IReplaceTransition` + `UIService` 接线（`ShowAsync` 推导 `Push/Replace`、`CloseAsync` 走 `Pop`、`Tick` 帧末转发）。
+> 七条的落点：进 `Assets/Tests/EditMode/UiTransitionEditModeTests.cs`（**11 条，EditMode 全绿**）。**例外**：完成事件当前只到 C# 事件层（`Began`/`Finished`）——Lua 侧 `begin/end` 桥随 §1 的 `Go/Back` 一起做。
+> **两点实现说明**：① 规则①（同帧 last-wins）落在 Runner 入口（首个请求立即开始、后续走排队/丢弃分支），而非依赖机器 pending 覆盖；② 超时用 `StageTime` 帧末计时而非 `WhenAny(Delay)`——后者依赖 PlayerLoop，在 EditMode 下无法确定性复现。
+
 ---
 
 ## 2. 本地化（独立 key 表）

@@ -1,0 +1,27 @@
+{
+    "name": "LiteGame.Runtime",
+    "rootNamespace": "LiteGame",
+    "references": [
+        "LiteFramework.Core",
+        "LiteFramework.Unity",
+        "Luban.Runtime",
+        "Luban.Tables",
+        "UniTask",
+        "YooAsset",
+        "xLuaMain",
+        "DOTween.Modules",
+        "Unity.TextMeshPro",
+        "LiteCodeGen.Runtime",
+        "LiteSim.Core",
+        "LiteSim.View"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

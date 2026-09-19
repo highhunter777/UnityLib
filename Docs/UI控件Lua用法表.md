@@ -31,7 +31,7 @@
 
 ---
 
-## 1. 现有 `self.ui` 全集（**13 个方法**，与代码 1:1；批⑦ 已补 G1/G3/G7/G10）
+## 1. 现有 `self.ui` 全集（**16 个方法**，与代码 1:1；批⑦ 已补 G1/G3/G7/G10，批⑧ 已补 G20 动效口）
 
 | 方法 | 签名 | 语义 | 备注 |
 | --- | --- | --- | --- |
@@ -48,8 +48,16 @@
 | `ShowToast` | `ui:ShowToast(text)` | 轻提示（走场景内 `Toast` 单例） | **无 ToastHost 时记日志不抛**（提示非关键路径） |
 | `ShowBubble` | `ui:ShowBubble(name, text, duration)` | 气泡（`duration` 省略默认 1.5s） | 目标 `UIBubble`；重复调用取消上一次 |
 | `ShowFlyText` | `ui:ShowFlyText(name, text)` | 飘字（位置取控件自身 anchoredPosition） | 目标 `FlyTextPool` |
+| `Pulse` | `ui:Pulse(name, strength, duration)` | 脉冲：透明度呼吸两次 | **G20**（`strength` 默认 1.2 / `duration` 0.16）；目标须能解析出 `Graphic` |
+| `Flash` | `ui:Flash(name, duration)` | 闪烁：一次性高亮回落 | **G20**（`duration` 默认 0.3） |
+| `Slide` | `ui:Slide(name, ox, oy, duration)` | 位移入场：从相对偏移滑回原位 | **G20**（默认 0.25s）；目标是节点自身 `transform` |
 
-> 上面 5 条走的是 **whitelist 派发通道**（`Action<string, LuaTable>`，payload 表协议）——新增方法不必新增 xLua 生成，同款手法扩展即可。
+> 上面各条走的是 **whitelist 派发通道**（`Action<string, LuaTable>`，payload 表协议）——新增方法不必新增 xLua 生成，同款手法扩展即可。
+>
+> **动效口（G20）解析规则（实现细节，写 Lua 时只需知道结论）**：索引里存的是 `BindNode` 自动检测到的组件——
+> 带 `Button` 的节点存的是 `Button`，故 `Pulse/Flash` 解析 `Graphic` 时三级回退（自身 `Graphic` → `Button.targetGraphic` → 子级 `Graphic`）；
+> `Slide` 取 `transform as RectTransform`（**不用** `Get<RectTransform>`——`BindNode` 不产 RectTransform）。
+> 未命中 / 拿不到 `Graphic` = **抛**（与其余 13 个方法同语义，fail-fast）。
 
 ---
 
@@ -113,7 +121,7 @@
 | **G11/G12** | `PlayAnim` / `SetAvatar` | AnimatedImage / AvatarFrame | P2 | ⏳ |
 | **G18** | `OnClickArea` | EventRelay | P2 | ⏳ |
 | **G19** | `GuideTo` | GuideHighlight | P2 | ⏳ |
-| **G20** | **动效口** `Pulse` / `Flash` / `Slide` | 任意 Graphic/RectTransform | P1 | ⏳（《动效设计方案》§A.3 已定集） |
+| **G20** | **动效口** `Pulse` / `Flash` / `Slide` | 任意 Graphic/RectTransform | P1 | ✅ **已实现（批⑧，2026-09-19）**（《动效设计方案》§A.3 定集） |
 
 ---
 
@@ -133,7 +141,7 @@
 ## 5. 样例：一个界面逻辑表（现有 API 能写的部分 + 缺口处标注）
 
 ```lua
--- Assets/LiteGame/Lua/UI/UIRoom.lua（示例：现有 13 个方法可覆盖 HUD/提示/计时）
+-- Assets/LiteGame/Lua/UI/UIRoom.lua（示例：现有 16 个方法可覆盖 HUD/提示/计时/动效）
 local M = {}
 
 function M:OnInit(data)
@@ -177,11 +185,14 @@ return M
 
 ## 6. 与既有设计的差异记录（如实）
 
-1. **《动效设计方案》§A.3** 定的受控 API 动效口（`Pulse`/`Flash`/`Slide`）**仍未实现** → G20（P1）
+1. ~~**《动效设计方案》§A.3** 定的受控 API 动效口（`Pulse`/`Flash`/`Slide`）**仍未实现** → G20（P1）~~
+   → **已实现（批⑧，2026-09-19）**：`UIBindIndex` 加 `Pulse/Flash/Slide` + `ResolveGraphic/ResolveRect` 两个解析器；
+   `LuaBehaviourAdapter` 的 shim/Dispatch 各加三条；模板自检 31→36（新增 G20a–e，只验解析层与错误语义，DOTween 行为留 Play）。
 2. **《自研框架设计方案》§4.7** 的"Lua 侧绑定区（`Bind` 声明）"**仍未实现**（`UIBindIndex.BindText` 存在但未挂到 `self.ui`）→ G21（P1，与 G9 同批）
 3. **批⑦ P0 已完成（2026-09-14）**：G1 修正 + G3/G7/G10 八条新方法；验证方式 = ①模板自检 31/31 PASS（含 6 条批⑦断言）②**Lua shim 实测**（Lua 原生值 → 5/5 正确）③**适配器 `Dispatch` 真实路径实测**（`setHp`/`setProgress`/`startCountdown`/`setInteractable` 4/4 ✓，验证 Lua number→float 与 bool 转换）
 4. **批⑦ 顺带修掉一个真实缺陷**：`UIBubble` 在等待期间宿主被销毁会抛 `MissingReferenceException`（`UniTask.Delay` 默认非即时观测取消 + 销毁后仍 `SetActive`）→ 已改为 `cancelImmediately: true` + `this == null` 守卫
-5. 剩余缺口 = **批⑧（P1/P2）**：G8/G9/G13/G14/G15/G16/G17/G4/G6/G5/G11/G12/G18/G19/G20/G21
+5. 剩余缺口 = **批⑧（P1/P2）**：G8/G9/G13/G14/G15/G16/G17/G4/G6/G5/G11/G12/G18/G19/G21
+   （**G20 已于 2026-09-19 落地**，见差异记录 1）
 
 ---
 

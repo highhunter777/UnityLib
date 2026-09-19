@@ -14,9 +14,15 @@ namespace LiteNet.Tests
     /// </summary>
     public sealed class BuildHashTests
     {
+        /// <summary>
+        /// **必须与 `scripts/gen-build-hash.py` 的 TARGETS 逐条一致**（生成器是 python、本测试是 C#，
+        /// 跨语言无法共享定义，只能同步维护——本用例就是用来抓这份漂移的）。
+        /// Systems/ 与 Scripts/ 平级（2026-09-19 目录收纳的最终形态），同属判定源集，漏了会让两端分叉不被校验。
+        /// </summary>
         private static readonly string[] Targets =
         {
             "Assets/LiteSim/Core/Scripts",
+            "Assets/LiteSim/Core/Systems",
             "Assets/LiteNet/Proto",
             "Assets/LiteNet/Protocol",
         };

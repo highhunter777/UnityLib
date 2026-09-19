@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Threading;
 using LiteFramework;
+using LiteSim.View;
 using UnityEngine;
 
 namespace LiteGame
@@ -90,6 +91,15 @@ namespace LiteGame
             var entityService = new EntityService();
             var audioService = new AudioService();
 
+            // 4.9 表现层：VFX 服务（《VFX服务实施指导》，M11）——世界空间粒子（加载/池化/挂点跟随/预算）。
+            //     加载口注入 AssetService（LiteSim.View 不反向依赖 LiteGame）；到期走世界时钟（时停即冻结）。
+            //     接缝（SimView 观察层）属 M11 C3，本处只装配服务本体。
+            var vfxService = new VfxService(
+                loader: (location, ct) => AssetService.LoadAssetAsync<GameObject>(location, ct),
+                clock: worldClock,
+                catalog: new VfxCatalog(),
+                budget: VfxBudget.Default());
+
             // 5. 注册（**注册顺序 = 驱动顺序**：MainThreadDispatcher 帧首泵最先 → 时钟 → FSM；
             //    注册即发现自动收集 ITickable/IModuleStats，无需手工维护列表）
             s_container.RegisterInstance<IMainThreadDispatcher>(new MainThreadDispatcher());
@@ -97,7 +107,7 @@ namespace LiteGame
             s_container.RegisterInstance<IUIClock>(uiClock);
             s_container.RegisterInstance<IWallClock>(wallClock);
             s_container.RegisterInstance<IEventCenter>(events);
-            s_container.RegisterInstance<StageMachine<ProcedureId, ProcedureArgs>>(s_fsm = CreateMachine(config, lua, events, uiService, uiRegistry, contentRegistry, strategyRegistry, redDotRegistry, logicScheduler, uiScheduler, timelineRunner, entityService, audioService));
+            s_container.RegisterInstance<StageMachine<ProcedureId, ProcedureArgs>>(s_fsm = CreateMachine(config, lua, events, uiService, uiRegistry, contentRegistry, strategyRegistry, redDotRegistry, logicScheduler, uiScheduler, timelineRunner, entityService, audioService, vfxService));
             s_container.RegisterInstance<SettingService>(settings);
             s_container.RegisterInstance<GameSettings>(gameSettings);
 
@@ -119,13 +129,13 @@ namespace LiteGame
             UIService uiService, UiLuaRegistry uiRegistry, ContentLuaRegistry contentRegistry,
             StrategyLuaRegistry strategyRegistry, RedDotRegistry redDotRegistry,
             ILogicScheduler logicScheduler, IUIScheduler uiScheduler, GameTimelineRunner timelineRunner,
-            EntityService entityService, AudioService audioService)
+            EntityService entityService, AudioService audioService, VfxService vfxService)
         {
             var scenes = new SceneService();
             var filler = new RegistryFiller(config, lua, uiRegistry, contentRegistry, strategyRegistry);
             var refill = new LuaRegistryRefillService(lua, uiService, config, uiRegistry, contentRegistry, strategyRegistry);
             return new StageMachine<ProcedureId, ProcedureArgs>("Procedure",
-                (ProcedureId.Launch, new ProcedureLaunch(s_container, config, scenes, uiRegistry, contentRegistry, strategyRegistry, uiService, redDotRegistry, logicScheduler, uiScheduler, timelineRunner, entityService, audioService, refill)),
+                (ProcedureId.Launch, new ProcedureLaunch(s_container, config, scenes, uiRegistry, contentRegistry, strategyRegistry, uiService, redDotRegistry, logicScheduler, uiScheduler, timelineRunner, entityService, audioService, vfxService, refill)),
                 (ProcedureId.Preload, new ProcedurePreload(config, lua, filler, events)),
                 (ProcedureId.Main, new ProcedureMain()),
                 (ProcedureId.Error, new ProcedureError()));

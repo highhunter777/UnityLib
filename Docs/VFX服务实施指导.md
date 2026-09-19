@@ -12,7 +12,7 @@
 | 项 | 状态 |
 | --- | --- |
 | 设计 | ✅ 定位/API/三边界/预算/升级判据/验收全在《动作与特效设计》§2 |
-| 素材 | ✅ 65 个粒子 prefab（`Assets/LiteGame/Art/Effects/`，命名 `fx_*`）；P1 六件清单已定（枪口火光/弹道拖尾/命中火花/血雾/AOE 圈/护盾球/冲刺残影） |
+| 素材 | ⚠️ **2026-09-19 实测修正**：工程内只有**第三方粒子包**（`Assets/FX/ParticlePack`、`Assets/FX/LuffyEffect`，命名如 `SparksEffect`）；**P1 六件的 `fx_*` prefab 尚未产出**——原文"65 个 `fx_*` 在 `Assets/LiteGame/Art/Effects/`"不成立（该目录实测为空）。P1 六件清单见 §4 |
 | 可复用形态 | ✅ `AudioService`（LiteGame Shell）：**代理池 + 单调句柄（永不复用）+ 分组优先级 + 淡入淡出 + 统计**——VFX 服务照此形态（把"优先级抢占"换成"预算与回收"） |
 | 可复用设施 | ✅ `ResourceService`（YooAsset 加载 + 收集组）、`IModuleStats`（DevHUD 观测）、`GameSettings.Quality`（画质档）、既有池化纪律 |
 | 缺（本文建） | ❌ `IVFXService`/`VfxService`/名→地址解析/预算与降级/挂点清理接缝/统计 |
@@ -25,7 +25,7 @@
 | --- | --- | --- | --- |
 | 1 | **归属与接口落位** | `IVFXService` + `VfxHandle` + `VfxService` 放 **`LiteSim.View`**；**不进框架、不进 LiteGame 壳** | 有 Sim 实体挂点语义（表现层专属）；相机服务同层先例 |
 | 2 | **句柄语义** | `VfxHandle` = `int`（**单调递增、永不复用**，0 = 无效）；`Stop(handle)` 对已回收句柄**幂等**（静默 no-op） | 照 `AudioService` 既有形态；避免 ABA（旧句柄误杀新特效） |
-| 3 | **名 → 地址解析** | **命名即引用**：`Play("fx_hit_default", …)` → 按收集组约定解析为 `Assets/LiteGame/Art/Effects/fx_hit_default.prefab` 的 YooAsset 地址；**本里程碑不做 Luban 表** | 服务只需"名字 → 资源"；"哪个动作播哪个特效"属表现轨/动作表（C3 之后）内容侧——**不为能用先造表** |
+| 3 | **名 → 地址解析** | **命名即引用**：`Play("fx_hit_default", …)` → 解析为 **`Assets/FX/fx_hit_default.prefab`**（2026-09-19 改，原定 `Assets/LiteGame/Art/Effects/`）的 YooAsset 地址；**本里程碑不做 Luban 表** | 服务只需"名字 → 资源"；"哪个动作播哪个特效"属表现轨/动作表（C3 之后）内容侧——**不为能用先造表** |
 | 4 | **加载与池化** | YooAsset 异步加载 + **prefab 句柄缓存**（同 prefab 只加载一次）+ **按 prefab 分桶的实例池**；常用特效可选预热 | 复用既有资源服务与池化纪律；池命中率进统计 |
 | 5 | **跟随语义** | `follow=true` → `SetParent(attach, false)`（随宿主移动/销毁）；`follow=false` → 挂"世界特效容器"（点位特效，播完即收） | 两种语义覆盖 P1 六件（枪口/拖尾跟随；命中火花/AOE 圈世界） |
 | 6 | **时长与自动回收** | **不依赖粒子回调**：播放时算 `max(各 ParticleSystem.main.duration + startLifetime)`（或 prefab 上配置/美术标注）→ 到点 `Stop` + 归还池 | 回调会因 `ParticleSystem` 被禁用/对象失活而漏触发；定时回收是唯一可靠路径 |

@@ -2,6 +2,7 @@ using System;
 using System.Threading;
 using Cysharp.Threading.Tasks;
 using LiteFramework;
+using LiteSim.View;
 
 namespace LiteGame
 {
@@ -26,13 +27,15 @@ namespace LiteGame
         private readonly GameTimelineRunner _timelineRunner;
         private readonly EntityService _entities;
         private readonly AudioService _audio;
+        private readonly VfxService _vfx;
         private readonly LuaRegistryRefillService _refill;
 
         public ProcedureLaunch(ServiceContainer container, ConfigService config, SceneService scenes,
             UiLuaRegistry uiRegistry, ContentLuaRegistry contentRegistry, StrategyLuaRegistry strategyRegistry,
             UIService uiService, RedDotRegistry redDotRegistry,
             ILogicScheduler logicScheduler, IUIScheduler uiScheduler, GameTimelineRunner timelineRunner,
-            EntityService entityService, AudioService audioService, LuaRegistryRefillService refillService)
+            EntityService entityService, AudioService audioService, VfxService vfxService,
+            LuaRegistryRefillService refillService)
         {
             _container = container ?? throw new ArgumentNullException(nameof(container));
             _config = config ?? throw new ArgumentNullException(nameof(config));
@@ -47,6 +50,7 @@ namespace LiteGame
             _timelineRunner = timelineRunner ?? throw new ArgumentNullException(nameof(timelineRunner));
             _entities = entityService ?? throw new ArgumentNullException(nameof(entityService));
             _audio = audioService ?? throw new ArgumentNullException(nameof(audioService));
+            _vfx = vfxService ?? throw new ArgumentNullException(nameof(vfxService));
             _refill = refillService ?? throw new ArgumentNullException(nameof(refillService));
         }
 
@@ -71,6 +75,7 @@ namespace LiteGame
                 _container.RegisterInstance<ITimelineRunner>(_timelineRunner);   // 时间轴执行器（剧情/技能）
                 _container.RegisterInstance<EntityService>(_entities);   // 实体壳（M4 §2.8：池化+竞态表）
                 _container.RegisterInstance<AudioService>(_audio);       // 声音壳（M4 §2.9：组+代理）
+                _container.RegisterInstance<IVFXService>(_vfx);          // VFX 服务（M11：表现层，注册即发现 ITickable → 自动驱动到期回收）
                 _container.RegisterInstance<LuaRegistryRefillService>(_refill);   // 运行期增量重填（§2.3；触发点 M11 + 调试菜单）
                 _container.Seal();                       // 注册面冻结；此后 Resolve 不受限
 

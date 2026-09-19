@@ -24,6 +24,9 @@ import os
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TARGETS = [
     os.path.join('Assets', 'LiteSim', 'Core', 'Scripts'),
+    # 2026-09-19：目录收纳后 Systems/ 与 Scripts/ 平级（都放 Core 根下），这里必须显式列入——
+    # 那 5 个文件是判定逻辑（输入/移动/射击/伤害/清理），漏出 hash = 两端 System 分叉不会被握手校验出来。
+    os.path.join('Assets', 'LiteSim', 'Core', 'Systems'),
     os.path.join('Assets', 'LiteNet', 'Proto'),
     os.path.join('Assets', 'LiteNet', 'Protocol'),
 ]

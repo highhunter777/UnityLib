@@ -1,18 +1,10 @@
 {
-    "name": "LiteGame.Runtime",
-    "rootNamespace": "LiteGame",
+    "name": "LiteSim.View",
+    "rootNamespace": "LiteSim.View",
     "references": [
         "LiteFramework.Core",
         "LiteFramework.Unity",
-        "Luban.Runtime",
-        "Luban.Tables",
-        "UniTask",
-        "YooAsset",
-        "xLuaMain",
-        "DOTween.Modules",
-        "Unity.TextMeshPro",
-        "LiteCodeGen.Runtime",
-        "LiteSim.Core"
+        "UniTask"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

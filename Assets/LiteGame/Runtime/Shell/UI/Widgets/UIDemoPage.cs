@@ -10,7 +10,7 @@ namespace LiteGame.UI
     /// <summary>
     /// 控件库 Demo 页（M4c 验收：一页全展 + 最小断言）。
     /// **批⑤ 改造（2026-09-14）：代码构建 → 模板 prefab 实例化**。
-    /// 模板来自 `Assets/LiteGame/UI/Widgets/`（由 `LiteGame.Editor/WidgetPrefabBuilder` 确定性生成，25 件）；
+    /// 模板来自 `Assets/UI/Widgets/`（由 `LiteGame.Editor/WidgetPrefabBuilder` 确定性生成，25 件）；
     /// 模板件的结构/行为断言已归 `WidgetPrefabCheck`（编辑态 + Play 态 25/25 PASS）——本页只保留
     /// **与模板无关**的两条（UIDataBinder 去重、绑定/命令式所有权互斥），并负责"一页全展"。
     /// 加载：编辑器用 AssetDatabase（dev 页快路径）；**真机走 YooAsset 运行时加载**（收集组 `LiteGameWidgets`，
@@ -28,7 +28,7 @@ namespace LiteGame.UI
             "RedDot", "FlyText", "GuideHighlight", "EventRelay", "SafeArea",
         };
 
-        private const string WidgetDir = "Assets/LiteGame/UI/Widgets";
+        private const string WidgetDir = "Assets/UI/Widgets";   // 2026-09-19：UI 已从 LiteGame 迁到顶层 Assets/UI
 
         private int _pass, _fail;
 

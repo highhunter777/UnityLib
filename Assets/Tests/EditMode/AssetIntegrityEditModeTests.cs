@@ -18,7 +18,7 @@ namespace LiteGame.Tests.EditMode
     /// </summary>
     public sealed class AssetIntegrityEditModeTests
     {
-        private const string WidgetDir = "Assets/LiteGame/UI/Widgets";
+        private const string WidgetDir = "Assets/UI/Widgets";   // 2026-09-19：UI 已从 LiteGame 迁到顶层 Assets/UI
 
         [Test]
         public void UI模板_全部可加载且无缺失脚本()

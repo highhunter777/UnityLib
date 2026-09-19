@@ -22,7 +22,8 @@
 | `ui_icon_` | UI 图标 | `ui_icon_skill_dash` |
 | `ui_` | UI 切片/面板 | `ui_panel_bg`、`ui_btn_normal` |
 
-7. **交付目录**：`Assets/LiteGame/Art/{Models, Animations, Effects, UITextures, Audio}`（由 M6 收集规则按目录打 tag）
+7. **交付目录**：**用工程既有的顶层资源目录**（2026-09-19 修订——原定 `Assets/LiteGame/Art/{Models,Animations,Effects,UITextures,Audio}` 从未落地，实测为空目录，与外面已有素材割裂）：
+   模型 `Assets/Model/` · 动画 `Assets/Animation/` · 特效 `Assets/FX/` · 音频 `Assets/Sound/` · 地图 `Assets/Map/` · UI 图 `Assets/Art/`；由 M6 收集规则按目录打 tag
 
 ---
 
@@ -109,7 +110,7 @@
 | 5 | **音频 0 个** | 🟡 不阻塞（静音可跑） | 你（音效素材）；先用引擎内置占位 |
 | 6 | ~~demo 战斗场景缺~~ → ✅ **已解决**：`Map_v1.unity` / `Map_v2.unity` 两张完整工业地图（含光照）+ 模块化件可拼新图 | — | —（注意：见 §6.4 包体约束） |
 | 7 | **UI 图集 / 图标 / 头像** | 🟢 灰盒纯色可顶（模板即灰盒） | 你（P2 正式素材） |
-| 8 | 资源目录骨架未建（`LiteGame/Art|Audio|Effect|Fonts`） | 🟢 | ✅ **已建**（2026-09-14） |
+| 8 | ~~资源目录骨架未建（`LiteGame/Art|Audio|Effect|Fonts`）~~ → **口径已改（2026-09-19）**：资源放工程既有顶层目录（见 §0-7），`Assets/LiteGame/Art/` 不再使用（实测为空） | 🟢 | ✅ 已定 |
 | 9 | 杂项：`Assets/LiteGame/UI/_probe` 空目录 | 🟢 | 我（删除 API 被工具安全钩子拦，需手动删） |
 
 ### 6.4 新素材包的三条注意事项
