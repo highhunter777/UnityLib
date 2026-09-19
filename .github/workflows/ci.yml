@@ -7,6 +7,8 @@ on:
     branches: [ LiteGame, main ]
   pull_request:
   workflow_dispatch:
+  schedule:
+    - cron: '0 19 * * *'   # UTC 19:00 = 北京 03:00——夜间回归（M10 长跑层）
 
 jobs:
   l1-dotnet-test:
@@ -31,8 +33,8 @@ jobs:
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '8.0.x'
-          cache: true           # NuGet 缓存
+          dotnet-version: '8.0.28'   # 固定精确版本——'8.0.x' 浮动解析在 2026-09 起间歇失败（Setup 步骤红），
+          cache: false                # NuGet 缓存同样间歇损坏；restore 成本低，关闭换稳定
 
       - name: 基线防篡改校验（仅 ubuntu 跑一次）
         if: matrix.os == 'ubuntu-latest'
@@ -101,3 +103,33 @@ jobs:
         shell: powershell
         # 编辑器在跑 → 经 Unity Pipeline 查询（无需关闭编辑器）；未跑 → batchmode EditMode 测试
         run: powershell -NoProfile -File scripts/l2-unity-gate.ps1 -ProjectPath ${{ github.workspace }}
+
+  # ── 夜间回归层（M10 长跑）─────────────────────────────────────────────
+  # 5 分钟全量对跑（HeadlessRunTests.全量对跑_5分钟）由环境变量 M10_LONGRUN=1 门控：
+  # 常规 L1 门禁不跑（拖慢 push），夜间/手动跑——对跑观测和解率与无卡顿累积（§9 M10 验收）。
+  # 顺带每晚全量 L1 再验一轮（跨平台 matrix 同白昼门禁）。
+  nightly-longrun:
+    name: 夜间回归（长跑 + 全量 L1）
+    if: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.28'
+
+      - name: 全量对跑（5 分钟长跑，M10_LONGRUN=1）
+        env:
+          M10_LONGRUN: '1'
+        run: dotnet test Tests/Tests.slnx --filter "FullyQualifiedName~HeadlessRunTests" --verbosity minimal --blame-hang-timeout 10m
+
+      - name: 全量 L1（含夜间新增回归）
+        run: dotnet test Tests/Tests.slnx --verbosity minimal
