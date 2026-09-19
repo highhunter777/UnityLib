@@ -30,9 +30,14 @@ namespace LiteSim
         private int _rollbackCount;
         private int _deferredCount;
         private int _haltCount;
+        private int _reconcileCount;
+        private SimWorldState _probe;           // 和解比对探针态（惰性创建，复用——低频事件不违预分配精神）
 
         /// <summary>回滚回调（M11 View.Realign 接缝预留：参数 = 重放到的帧号）。Sim 不做 IO——订阅方自理。</summary>
         public Action<int> OnRollback;
+
+        /// <summary>和解回调（M10 客户端上报 MismatchReport 的接缝：参数 = 和解帧号）。</summary>
+        public Action<int> OnReconcile;
 
         public RollbackSim(SimWorldState initialState, SimMapData map, SimInputFrame[] inputTemplate)
         {
@@ -53,6 +58,7 @@ namespace LiteSim
         public int RollbackCount => _rollbackCount;
         public int DeferredRollbacks => _deferredCount;
         public int HaltCount => _haltCount;
+        public int ReconcileCount => _reconcileCount;
 
         /// <summary>诊断/测试用：重放段逐帧修正验证（M9 决策⑨）。</summary>
         public SnapshotRing Ring => _ring;
@@ -156,6 +162,51 @@ namespace LiteSim
             _rollbacksThisFrame++;
             _rollbackCount++;
             if (OnRollback != null) OnRollback(_state.Frame); // M11 View.Realign 接缝
+        }
+
+        /// <summary>
+        /// 权威快照和解入口（M10 §2.9；《状态同步实施方案》§5 章头："回退源=权威快照、重放范围=本地输入"）。
+        ///
+        /// - **快照超前**（frame &gt; 本地已执行帧——预测停摆/halt 态）：直接权威覆盖续跑（快照覆盖兜底语义）。
+        /// - **帧太老**（环窗口外）：无法重放中间预测——直接权威覆盖（丢中间预测，下一次快照再纠）。
+        /// - **环内**：本地预测@frame 的 checksum 与权威比对——一致 = 零和解；不符 = Restore 权威 + 重放
+        ///   frame+1..last（全体输入：本地真实 + 远端沿用——远端误差由下一次快照再纠，v3 预期内）。
+        ///
+        /// 返回 true = 发生和解（调用方上报 MismatchReport）。
+        /// </summary>
+        public bool OnAuthoritativeSnapshot(int frame, SimWorldState authoritative, uint authoritativeChecksum)
+        {
+            if (frame < 0 || authoritative == null) return false;
+
+            if (frame > _state.Frame || !_ring.ContainsFrame(frame))
+            {
+                // 超前/太老：权威态直接覆盖（快照覆盖兜底），预测从新基线继续
+                authoritative.CopyTo(_state);
+                _reconcileCount++;
+                if (OnReconcile != null) OnReconcile(frame);
+                return true;
+            }
+
+            // 环内：本地预测@frame checksum 比对（位级——和解判定的位级锚点）
+            _probe = _probe ?? new SimWorldState();
+            _ring.TryRestore(frame, _probe);
+            uint localChecksum = SimChecksum.ComputeChecksum(_probe);
+
+            if (localChecksum == authoritativeChecksum) return false;   // 预测正确——零和解（lint-allow R3：uint 位级判等，非浮点精度比较）
+
+            // 不符：权威覆盖 + 重放本地历史（frame+1..last）
+            int last = _state.Frame;
+            authoritative.CopyTo(_state);
+            for (int f = frame + 1; f <= last; f++)
+            {
+                if (!_history.TryGet(f, out var inputs, out var _)) break;   // 历史窗口外（不应达——32 > 深度）
+                SimStep.Step(_state, _map, inputs);
+                _state.Events.Clear();                          // 重放期事件不消费即清（决策⑫）
+            }
+
+            _reconcileCount++;
+            if (OnReconcile != null) OnReconcile(frame);
+            return true;
         }
     }
 }

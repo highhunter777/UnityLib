@@ -1,0 +1,141 @@
+using System;
+using System;
+using System.Collections.Generic;
+using LiteNet;
+using LiteNet.Protocol;
+using LiteNet.Transport;
+using LiteSim;
+using RoomServer;
+
+namespace LiteNet.Tests
+{
+    /// <summary>
+    /// 无头客户端（M10 验收 harness；M10 决策⑥ 全量预测形态）：
+    /// RoomClient（网络面）+ RollbackSim（全量预测/和解，惰性建——StartGame.Seed 下发后与服务器同构建世界）。
+    ///
+    /// 和解（决策⑥ 全量预测形态）：远端玩家输入客户端未知（沿用零）→ 权威与预测必分叉 → 每次快照
+    /// OnAuthoritativeSnapshot 恢复权威 + 重放本地历史 → 不发散（有界偏差）。和解率 = "权威与预测差异率"
+    /// （全量预测形态下预期偏高属机制正确；混合形态调优留后——《M10 实施指导》决策⑥）。
+    /// </summary>
+    public sealed class HeadlessClient : IDisposable
+    {
+        public readonly RoomClient Client;
+        public readonly string ClientName;
+        public int PlayerId = -1;
+        public long LocalEntityId;
+        public int LastSnapshotFrame;
+        public long MismatchReports;      // 上报的和解次数（和解率分子）
+        public long InputsSent;
+
+        private RollbackSim _sim;
+        private SimMapData _map;
+        private readonly Queue<SimInputFrame> _pending = new Queue<SimInputFrame>();
+        private SimInputFrame _lastInput;
+
+        public RollbackSim Sim => _sim;
+
+        public HeadlessClient(string name, SimMapData map, KcpTransportClient transport)
+        {
+            ClientName = name;
+            _map = map;
+            Client = new RoomClient(transport);
+            Client.OnStartGame += OnStartGame;
+            Client.OnSnapshot += OnSnapshot;
+            // 连接即自动请求进房：Join 延迟到 transport OnConnected（kcp2k cookie 握手完成后）再发
+            transport.OnConnected += () => Client.SendJoin(RoomServer.ServerHost.DefaultRoomId, "harness", RoomServer.ServerHost.ServerBuildHash);
+            Client.Connect("127.0.0.1", 27778);
+        }
+
+        /// <summary>StartGame：按服务器下发的 seed 重建同构世界（双玩家 = 与 Room.Start 的玩家段一致）→ 建 RollbackSim。</summary>
+        private void OnStartGame(Proto.StartGame sg)
+        {
+            if (_sim != null) return;   // 幂等
+
+            var world = new SimWorldState { RngState = (ulong)sg.Seed };
+            for (int i = 0; i < 2; i++)
+            {
+                SimVector3 spawn = _map.SpawnPoints[i % _map.SpawnPointCount];
+                world.Spawn(new EntitySlot { Hp = 100, Pos = spawn, Yaw = 0f }, out int _);
+            }
+            _sim = new RollbackSim(world, _map, IdentityTemplateFor(PlayerId, 2));
+        }
+
+        /// <summary>身份模板：EntityId = 各玩家槽位实体（占位——JoinAck 后按 PlayerId 对齐；真实 Id 由快照 SlotDelta 携带）。</summary>
+        private static SimInputFrame[] IdentityTemplateFor(int playerId, int playerCount)
+        {
+            var template = new SimInputFrame[playerCount];
+            for (int i = 0; i < 2; i++) template[i].EntityId = i;   // 服务器覆写防伪；本地预测按 playerId 对齐
+            return template;
+        }
+
+        /// <summary>注入本地意图输入（对跑脚本生成；下一 Tick 发出并预测消费）。</summary>
+        public void EnqueueLocalInput(SimInputFrame input) => _pending.Enqueue(input);
+
+        /// <summary>推进（泵内调用）：发本地输入 → 预测推进。</summary>
+        public void Tick(float realDelta)
+        {
+            if (_sim == null) return;
+
+            // 本地输入 EntityId 对齐本客户端（PlayerId → 槽位实体；服务器侧 InputGate 会覆写防伪，本地预测保持同 Id）
+            var local = _pending.Count > 0 ? _pending.Dequeue() : default;
+            local.EntityId = LocalEntityId;
+
+            Client.SendInput(_sim.State.Frame + 1, new Proto.InputFrame
+            {
+                EntityId = local.EntityId,
+                MoveX = local.MoveX, MoveZ = local.MoveZ,
+                AimX = local.AimX, AimZ = local.AimZ,
+                Buttons = local.Buttons,
+            }, viewFrame: 0);
+            InputsSent++;
+
+            Sim.Tick(realDelta);
+            _lastInput = local;
+        }
+
+        /// <summary>快照处理：和解（Sim 内部 checksum 比对/覆盖/重放）+ 首次快照对齐本地实体 Id（按 Slot==PlayerId）。</summary>
+        private void OnSnapshot(Proto.StateSnapshot snapshot)
+        {
+            LastSnapshotFrame = snapshot.Frame;
+
+            if (LocalEntityId == 0 && Client.PlayerId >= 0)
+            {
+                foreach (var slot in snapshot.Slots)
+                {
+                    if (slot.Slot == Client.PlayerId) { LocalEntityId = slot.Id; break; }
+                }
+            }
+
+            var authoritative = SimAuthMirror(snapshot);
+            bool reconciled = Sim.OnAuthoritativeSnapshot(snapshot.Frame, authoritative, snapshot.Checksum);
+            if (reconciled)
+            {
+                MismatchReports++;
+                Client.SendMismatch(snapshot.Frame);
+            }
+        }
+
+        /// <summary>权威镜像重建：直接槽位赋值（保 Id/活体位——Spawn 走分配器会破坏 Id 一致性）。</summary>
+        private static SimWorldState SimAuthMirror(Proto.StateSnapshot snapshot)
+        {
+            var restored = new SimWorldState { Frame = snapshot.Frame };
+            foreach (var slot in snapshot.Slots)
+            {
+                int slotIndex = slot.Slot;
+                restored.Entities[slotIndex] = new EntitySlot
+                {
+                    Id = slot.Id,
+                    Pos = new SimVector3(slot.PosX, slot.PosY, slot.PosZ),
+                    Vel = new SimVector3(slot.VelX, slot.VelY, slot.VelZ),
+                    Yaw = slot.Yaw,
+                    Hp = slot.Hp,
+                    Flags = slot.Flags,
+                };
+                restored.AliveBitmap[slotIndex >> 5] |= 1u << (slotIndex & 31);
+            }
+            return restored;
+        }
+
+        public void Dispose() => Client.Dispose();
+    }
+}
