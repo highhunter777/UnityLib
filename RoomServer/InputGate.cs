@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+using System;
+using System.Collections.Generic;
 using LiteNet;
 using LiteNet.Protocol;
 using LiteNet.Proto;
@@ -15,12 +16,18 @@ namespace RoomServer
     /// - **帧号合法性**：frame ≤ 0 或 frame > 服务器当前帧 + 容忍窗（未来帧时钟攻击面）丢弃。
     /// - **同帧去重**：每帧每玩家至多 1 条（后到覆盖语义改为"首条生效"——冗余包重复不重复消费）。
     /// - **EntityId 防伪**：客户端上报的 EntityId 一律**覆写**为该会话所属实体 Id。
-    /// - **ackSnapshot**：合法性记账（负值/超前丢弃）——批③延迟补偿消费。
+    /// - **ackSnapshot**：合法性记账（负值/超前**钳位 + 计数，不丢输入**；判定不消费它——回溯窗口由
+    ///   `LagCompensator` 自行 clamp。2026-09-19 修正：原先"超前即丢整条"会丢掉合法输入，因为服务器
+    ///   下发的 ack 恰可能等于"下一待处理帧"）。
+    /// - **已消费帧**（frame ≤ 服务器当前帧）：拒绝（权威只前进，存了就是永不消费的滞留项）。
     /// </summary>
     public sealed class InputGate
     {
         /// <summary>未来帧容忍窗（帧号超过 当前帧+此值 = 丢弃——客户端时钟攻击面）。</summary>
         public const int FutureFrameTolerance = 8;
+
+        /// <summary>最近一次收包中（钳位后的）ackSnapshot——审计/上报用，判定不依赖。</summary>
+        public int LastClampedAckSnapshot = -1;
 
         /// <summary>合法输入的接收计数（Ops）。</summary>
         public long AcceptedCount;
@@ -29,6 +36,8 @@ namespace RoomServer
         public long DroppedIllegalFrame;
         public long DroppedDuplicateFrame;
         public long DroppedOutOfRange;
+        /// <summary>帧号已消费（≤ 服务器当前帧）——不入预存（否则永不消费的滞留项）。</summary>
+        public long DroppedStaleFrame;
         public long DroppedAckSnapshot;
         public long DroppedIllegalButtons;
 
@@ -52,16 +61,38 @@ namespace RoomServer
         /// 校验并**预存**一条输入（frame 可为未来帧——inputDelay=1 语义）。
         /// EntityId 覆写为会话所属实体（防伪）。返回 false = 校验失败已丢弃（调用方无需处理）。
         /// </summary>
-        public bool Store(InputMessage msg, int playerId, long entityId, int serverFrame)
+        /// <summary>
+        /// 校验并**预存**一条输入（frame 可为未来帧——inputDelay=1 语义）。
+        /// EntityId 覆写为会话所属实体（防伪）。
+        ///
+        /// 2026-09-19 审查修正三处：
+        /// ① **ackSnapshot 不再导致丢输入**：ack 是**元数据**（判定不消费它；回溯窗口由
+        ///    <see cref="LagCompensator"/> 自行 clamp），且服务器自己下发的 ack 可能等于"下一待处理帧"
+        ///    （见 <see cref="LastAcceptedFrame"/>），原先"ack &gt; serverFrame 即整条丢弃"会**丢掉合法输入**
+        ///    （服务器只能用空输入推进该帧）。现在：越界 ack **只计数 + 钳到 serverFrame**，输入照常处理。
+        /// ② **拒绝已消费帧**（frame ≤ serverFrame）：权威只向前推进，这类帧永不会被消费 → 存了就是滞留。
+        /// ③ **输出实际接受的帧与输入**（`out acceptedFrame/acceptedInput`）：调用方（开火/回溯判定）
+        ///    必须用"真正被接受的帧"，而不是自己再推一遍取帧口径——否则两处口径一旦分叉，
+        ///    会出现"输入收了（真开枪）但没记回溯判定"的不一致。
+        /// </summary>
+        public bool Store(InputMessage msg, int playerId, long entityId, int serverFrame,
+            out int acceptedFrame, out SimInputFrame acceptedInput)
         {
-            // ackSnapshot 合法性：非负且不超前于服务器当前帧（超前 = 捏造收包）
+            acceptedFrame = -1;
+            acceptedInput = default;
+
+            // ackSnapshot 记账：越界只钳 + 计数，**不丢输入**（见上 ①）
             if (msg.AckSnapshot < 0 || msg.AckSnapshot > serverFrame)
             {
                 DroppedAckSnapshot++;
-                return false;
+                LastClampedAckSnapshot = Math.Clamp(msg.AckSnapshot, 0, serverFrame);
+            }
+            else
+            {
+                LastClampedAckSnapshot = msg.AckSnapshot;
             }
 
-            // 冗余窗口取帧：优先"服务器当前帧+1"（inputDelay 正常形态），退而取窗口内未消费的最大帧
+            // 冗余窗口取帧：优先"服务器当前帧+1"（inputDelay 正常形态），退而取窗口内**未消费的**最大帧
             int frame = -1;
             InputFrame wire = null;
             for (int f = serverFrame + 1; f >= serverFrame - InputPacker.MaxRedundancy && wire == null; f--)
@@ -73,6 +104,13 @@ namespace RoomServer
             if (wire == null || frame <= 0 || frame > serverFrame + FutureFrameTolerance)
             {
                 DroppedOutOfRange++;
+                return false;
+            }
+
+            // 已消费帧：权威只前进（帧号 = 已执行步数），≤ serverFrame 的帧永不再被 TryConsume → 不入预存
+            if (frame <= serverFrame)
+            {
+                DroppedStaleFrame++;
                 return false;
             }
 
@@ -100,6 +138,8 @@ namespace RoomServer
             };
             _pending[frame] = input;
             AcceptedCount++;
+            acceptedFrame = frame;
+            acceptedInput = input;
             return true;
         }
 

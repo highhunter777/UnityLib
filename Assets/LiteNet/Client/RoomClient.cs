@@ -23,13 +23,19 @@ namespace LiteNet
         private int _recentFrame = -1;      // 最近记录的逻辑帧（-1 = 尚未记录）
         private int _recentCount;           // 从 _recentFrame 往回**连续**可用的帧数（跳帧即重置为 1）
         private int _lastAckSnapshot;
-        private int _lastViewFrame;
-        private bool _started;
         private bool _disposed;
 
         public bool Connected => _transport.Connected;
         public int PlayerId { get; private set; } = -1;
+        /// <summary>
+        /// 最近一次收到的**输入确认**（= 服务器已接受本客户端输入到的帧号，快照的 `AckInput` 字段）。
+        /// ⚠️ 它**不是**"最新收到的快照帧号"——别拿它算视点帧（§3.4.1 的"视角帧"要的是快照帧，
+        /// 见 <see cref="LastSnapshotFrame"/>；此处命名沿协议字段，2026-09-19 审查加注避免误用）。
+        /// </summary>
         public int LastAckSnapshot => _lastAckSnapshot;
+
+        /// <summary>最近一次收到的快照帧号（**视点帧推导的正确来源**：+ `SimConfig.InterpFrames` = 玩家所见帧，§3.4.1）。</summary>
+        public int LastSnapshotFrame { get; private set; } = -1;
 
         /// <summary>当前冗余窗口可带的帧数（诊断/测试用：= 从最新帧往回连续可用的输入帧数，≤ 4）。</summary>
         public int RedundancyWindowSize => _recentCount;
@@ -70,7 +76,6 @@ namespace LiteNet
 
             var msg = InputPacker.Pack(frame, new ReadOnlySpan<SimInputFrame>(_window, 0, _recentCount),
                 _lastAckSnapshot, viewFrame);
-            _lastViewFrame = viewFrame;
             Send(PacketType.Input, msg, reliable: false);
         }
 
@@ -146,12 +151,12 @@ namespace LiteNet
                     OnJoinAck?.Invoke(ack);
                     break;
                 case PacketType.StartGame:
-                    _started = true;
                     OnStartGame?.Invoke((Proto.StartGame)msg);
                     break;
                 case PacketType.StateSnapshot:
                     var snapshot = (Proto.StateSnapshot)msg;
                     _lastAckSnapshot = snapshot.AckInput;
+                    LastSnapshotFrame = snapshot.Frame;
                     OnSnapshot?.Invoke(snapshot);
                     break;
             }

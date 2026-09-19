@@ -138,12 +138,23 @@ if ((Test-Path $descriptor) -and -not $RunEditModeTests) {
             try {
                 # 先清控制台缓冲：否则"上一次失败编译"的 error 会留在缓冲里被判成本次失败（2026-09-19 实测误报）
                 Invoke-PipelineCommand 'clear_console' | Out-Null
-                Invoke-PipelineCommand 'eval' @('UnityEditor.AssetDatabase.Refresh(UnityEditor.ImportAssetOptions.ForceSynchronousImport); UnityEditor.Compilation.CompilationPipeline.RequestScriptCompilation();') | Out-Null
+
+                # 代码走临时文件（eval_file）而不是内联字符串：脚本宿主传内联代码会被 native 参数引号规则弄坏
+                # （实测内联形式持续报 "Command 'eval' failed"，而 eval_file 一次就过）
+                $reqFile = Join-Path $ProjectPath 'Temp/l2-freshness-request.cs'
+                $stFile = Join-Path $ProjectPath 'Temp/l2-freshness-status.cs'
+                Set-Content -Path $reqFile -Encoding UTF8 -Value @(
+                    'UnityEditor.AssetDatabase.Refresh(UnityEditor.ImportAssetOptions.ForceSynchronousImport);',
+                    'UnityEditor.Compilation.CompilationPipeline.RequestScriptCompilation();')
+                Set-Content -Path $stFile -Encoding UTF8 -Value @(
+                    'return UnityEditor.EditorApplication.isCompiling ? 1 : 0;')
+
+                Invoke-PipelineCommand 'eval_file' @('Temp/l2-freshness-request.cs') | Out-Null
                 $waited = 0
                 while ($waited -lt 90) {
                     Start-Sleep -Seconds 3
                     $waited += 3
-                    $busy = Invoke-PipelineCommand 'eval' @('return UnityEditor.EditorApplication.isCompiling ? 1 : 0;')
+                    $busy = Invoke-PipelineCommand 'eval_file' @('Temp/l2-freshness-status.cs')
                     if ($busy -notmatch '"result":\s*"?1') { break }
                 }
             }

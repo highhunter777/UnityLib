@@ -74,6 +74,9 @@ namespace RoomServer
             _entityIds = new long[players];
             _frameInputs = new SimInputFrame[players];
             _playerSessions = new Session[players];
+            _pendingFireView = new int[players];
+            _pendingFireAck = new int[players];
+            _hasPendingFire = new bool[players];
             _recentInputs = new InputHistory(SimConfig.MaxInputHistory, players);
             Broadcaster = new RoomBroadcaster(_playerSessions, _entityIds, new SnapshotDiffer());
         }
@@ -144,43 +147,44 @@ namespace RoomServer
             Started = true;
         }
 
-        /// <summary>消费一条已过闸输入（预存到 frame 对应槽——inputDelay=1 语义，权威帧推进到位时消费）。</summary>
+        /// <summary>
+        /// 消费一条已过闸输入（预存到 frame 对应槽——inputDelay=1 语义，权威帧推进到位时消费）。
+        ///
+        /// 2026-09-19 审查修正：开火判定改用 **`InputGate.Store` 实际接受的那一帧与那份输入**——
+        /// 原先 `HasFire` 自己又推了一遍取帧口径（只认"服务器当前帧+1"），当窗口不含该帧而 Store
+        /// 向下取到更早的可接受帧时，会出现"输入收了（Sim 真开枪）但没记回溯判定"的不一致。
+        /// 现在**取帧口径只有一处**（InputGate），本类只消费其结果。
+        /// </summary>
         public void OnInput(Session session, InputMessage msg)
         {
             if (!Started || session.PlayerId < 0) return;
-            long before = Gate.AcceptedCount;
-            Gate.Store(msg, session.PlayerId, _entityIds[session.PlayerId], AuthSim.Frame);
-            if (Gate.AcceptedCount != before && OnInputAccepted != null) OnInputAccepted(session, msg);
 
-            // 开火 + 带视点帧 + 本包确实被接受 → 记下待回溯判定（在下一帧步进后执行——
-            // 那时环里才有"开火帧"的历史态；见 Room.StepFrame 的注释）
-            if (Gate.AcceptedCount != before && (msg.ViewFrame > 0) && HasFire(msg))
+            bool accepted = Gate.Store(msg, session.PlayerId, _entityIds[session.PlayerId], AuthSim.Frame,
+                out int acceptedFrame, out SimInputFrame acceptedInput);
+            if (!accepted) return;
+
+            if (OnInputAccepted != null) OnInputAccepted(session, msg);
+
+            // 开火 + 带视点帧 → 记下待回溯判定（在下一帧步进后执行——那时环里才有"开火帧"的历史态）
+            bool fired = (acceptedInput.Buttons & SimInputFrame.ButtonFire) != 0u;
+            if (fired && msg.ViewFrame > 0)
             {
-                _pendingFireView = msg.ViewFrame;
-                _pendingFireAck = msg.AckSnapshot;
-                _pendingFirePlayer = session.PlayerId;
-                _hasPendingFire = true;
+                int p = session.PlayerId;
+                _pendingFireView[p] = msg.ViewFrame;
+                _pendingFireAck[p] = Gate.LastClampedAckSnapshot;
+                _hasPendingFire[p] = true;
                 session.LastAckSnapshot = msg.AckSnapshot;
             }
         }
 
-        private int _pendingFirePlayer = -1;
-        private int _pendingFireView;
-        private int _pendingFireAck;
-        private bool _hasPendingFire;
-
-        /// <summary>本包冗余窗口里最新的那一帧是否按了开火（与 InputGate 的取帧口径一致：优先服务器当前帧+1）。</summary>
-        private bool HasFire(InputMessage msg)
-        {
-            int frame = AuthSim.Frame + 1;
-            int offset = msg.Frame - frame;
-            if (offset < 0 || offset >= msg.Frames.Count) return false;
-            return (msg.Frames[offset].Buttons & SimInputFrame.ButtonFire) != 0u;
-        }
+        /// <summary>待回溯判定的开火输入——**按玩家分槽**（4 人房同 tick 多人开火不能互相覆盖）。</summary>
+        private readonly int[] _pendingFireView;
+        private readonly int[] _pendingFireAck;
+        private readonly bool[] _hasPendingFire;
 
         /// <summary>
         /// 推进一步权威帧（§4.5-3 权威定序）：消费预存输入（缺席沿用空输入）→ Step → 快照环 Capture
-        /// → 记录历史输入 → 回溯判定（若本步有开火）→ 到点广播快照。
+        /// → 记录历史输入 → 回溯判定（本步各玩家 pending 开火逐个处理）→ 到点广播快照。
         /// </summary>
         public bool StepFrame()
         {
@@ -212,15 +216,14 @@ namespace RoomServer
         /// </summary>
         private void ConsumePendingFire()
         {
-            if (!_hasPendingFire) return;
-            _hasPendingFire = false;
+            for (int playerId = 0; playerId < ExpectedPlayers; playerId++)
+            {
+                if (!_hasPendingFire[playerId]) continue;
+                _hasPendingFire[playerId] = false;
 
-            int playerId = _pendingFirePlayer;
-            if (playerId < 0 || playerId >= ExpectedPlayers) return;
-            long entityId = _entityIds[playerId];
-
-            LagComp.CompensateFire(playerId, entityId, _pendingFireView, _pendingFireAck);
-            FireInputsProcessed++;
+                LagComp.CompensateFire(playerId, _entityIds[playerId], _pendingFireView[playerId], _pendingFireAck[playerId]);
+                FireInputsProcessed++;
+            }
         }
 
         /// <summary>下一次广播强制全量（重连场景：客户端要从零重建）。转调广播器（广播面已拆出）。</summary>

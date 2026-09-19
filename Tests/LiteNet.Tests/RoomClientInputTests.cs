@@ -155,6 +155,20 @@ namespace LiteNet.Tests
             Assert.Throws<ObjectDisposedException>(() => c.SendInput(1, Input(1, 0), 0));
         }
 
+        [Fact]
+        public void 快照帧与输入确认_分开跟踪_供视点帧推导()
+        {
+            var t = new FakeTransport();
+            var c = new RoomClient(t);
+
+            // 服务器快照：Frame=100（快照帧），AckInput=57（已接受的输入帧）——两者语义不同
+            var snap = new LiteNet.Proto.StateSnapshot { Frame = 100, AckInput = 57, IsFull = true };
+            t.RaiseData(Protocol.PacketCodec.Encode(Protocol.PacketType.StateSnapshot, snap));
+
+            Assert.Equal(100, c.LastSnapshotFrame);   // 视点帧推导要用这个（§3.4.1）
+            Assert.Equal(57, c.LastAckSnapshot);      // 这是"输入已到达服务器"，别当快照帧用
+        }
+
         private static SimInputFrame Input(int frame, uint buttons)
         {
             return new SimInputFrame
@@ -194,6 +208,8 @@ namespace LiteNet.Tests
             }
 
             public void RaiseDisconnected() => OnDisconnected?.Invoke();
+
+            public void RaiseData(byte[] packet) => OnData?.Invoke(new ArraySegment<byte>(packet), true);
 
             public Proto.InputMessage LastInput()
             {

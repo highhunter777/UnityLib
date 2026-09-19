@@ -97,7 +97,13 @@ namespace RoomServer
             SimVector3 viewPos = ResolvePosition(authSim, entityId);
             float radius = session.BackpressureTier >= 2 ? ProtocolConstants.ThrottleAoiRadius : SimConfig.AoiRadius;
 
-            Proto.StateSnapshot snapshot = _differ.BuildFor(frame, authSim, gate.LastAcceptedFrame(playerId), viewPos, radius);
+            // ackInput 口径（2026-09-19 审查修正）：= min(该客户端最新被接受的输入帧, 本快照帧)。
+            // 为什么必须钳：inputDelay=1 下"最新接受帧"通常是**服务端帧+1**（客户端发的是未来帧），
+            // 直接下发会让客户端回传一个**超前于服务端当前帧**的 AckSnapshot，而 InputGate 收包时
+            // 以 `AckSnapshot > serverFrame` 判非法 → **合法输入被自己的 ack 丢掉**（服务器只能用空输入推进）。
+            // 钳到本快照帧后：既符合 §3.4.1「ackSnapshot ≤ 服务器已广播帧号」，也保持"输入已到达"的语义。
+            int ackInput = Math.Min(gate.LastAcceptedFrame(playerId), frame);
+            Proto.StateSnapshot snapshot = _differ.BuildFor(frame, authSim, ackInput, viewPos, radius);
             if (session.BackpressureTier >= 3) TrimFarthest(snapshot, viewPos);   // 档位 3：低优先级实体丢弃
             if (snapshot.IsFull) SnapshotFullSent++;
 
