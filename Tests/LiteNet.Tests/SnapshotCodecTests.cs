@@ -11,7 +11,7 @@ namespace LiteNet.Tests
         private static SimWorldState BuildWorld()
         {
             var s = new SimWorldState { RngState = 0x5EEDBEEF12345678UL };
-            s.Spawn(new EntitySlot { Hp = 100, Pos = new SimVector3(0f, 0f, 0f), Yaw = 0.5f }, out _);
+            s.Spawn(new EntitySlot { Hp = CombatConfig.EntityHp, Pos = new SimVector3(0f, 0f, 0f), Yaw = 0.5f }, out _);
             s.Spawn(new EntitySlot { Hp = 75, Pos = new SimVector3(10f, 0f, -3.25f), Vel = new SimVector3(-1.5f, 0f, 2.25f), Yaw = 3.1f, Flags = 2u }, out _);
             return s;
         }

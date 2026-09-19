@@ -137,7 +137,7 @@ namespace RoomServer
             for (int i = 0; i < _members.Count; i++)
             {
                 SimVector3 spawn = Map.SpawnPoints[i % Map.SpawnPointCount];
-                AuthSim.Spawn(new EntitySlot { Hp = 100, Pos = spawn, Yaw = 0f }, out int slot);
+                AuthSim.Spawn(new EntitySlot { Hp = CombatConfig.EntityHp, Pos = spawn, Yaw = 0f }, out int slot);
                 _entityIds[i] = AuthSim.Entities[slot].Id;
             }
 

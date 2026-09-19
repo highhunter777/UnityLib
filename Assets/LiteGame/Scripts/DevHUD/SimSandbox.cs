@@ -64,7 +64,7 @@ namespace LiteGame
             _map.SpawnPointCount = 1;
 
             _state = new SimWorldState { RngState = WorldSeed };
-            _state.Spawn(new EntitySlot { Hp = 100, Pos = new SimVector3(0f, 0f, 0f), Yaw = 0f }, out int slot);
+            _state.Spawn(new EntitySlot { Hp = CombatConfig.EntityHp, Pos = new SimVector3(0f, 0f, 0f), Yaw = 0f }, out int slot);
             _playerId = _state.Entities[slot].Id;
 
             _driver = new FrameDriver();
@@ -197,7 +197,7 @@ namespace LiteGame
             for (int i = 0; i < TargetCount; i++)
             {
                 float z = -10f + 5f * i; // 与 SimChecksumBaselineSpec 靶标布点一致
-                _state.Spawn(new EntitySlot { Hp = 100, Pos = new SimVector3(20f, 0f, z) }, out int _);
+                _state.Spawn(new EntitySlot { Hp = CombatConfig.EntityHp, Pos = new SimVector3(20f, 0f, z) }, out int _);
             }
             _targetsLeft = TargetCount;
         }

@@ -7,7 +7,9 @@
         "LiteGame.Editor",
         "LiteGame.Runtime",
         "UnityEngine.TestRunner",
-        "UnityEditor.TestRunner"
+        "UnityEditor.TestRunner",
+        "Luban.Runtime",
+        "Luban.Tables"
     ],
     "includePlatforms": [
         "Editor"

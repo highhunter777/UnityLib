@@ -21,8 +21,8 @@ namespace LiteNet.Tests
             map.SpawnPointCount = 2;
 
             var s = new SimWorldState { RngState = 0x1234UL };
-            s.Spawn(new EntitySlot { Hp = 100, Pos = map.SpawnPoints[0] }, out _);
-            s.Spawn(new EntitySlot { Hp = 100, Pos = map.SpawnPoints[1] }, out _);
+            s.Spawn(new EntitySlot { Hp = CombatConfig.EntityHp, Pos = map.SpawnPoints[0] }, out _);
+            s.Spawn(new EntitySlot { Hp = CombatConfig.EntityHp, Pos = map.SpawnPoints[1] }, out _);
             return s;
         }
 
@@ -187,7 +187,7 @@ namespace LiteNet.Tests
         public void AOI_关闭全可见_开启按格裁剪且自己必在()
         {
             var state = BuildWorld(out _);
-            state.Spawn(new EntitySlot { Hp = 100, Pos = new SimVector3(45f, 0f, 45f) }, out int farSlot);
+            state.Spawn(new EntitySlot { Hp = CombatConfig.EntityHp, Pos = new SimVector3(45f, 0f, 45f) }, out int farSlot);
 
             var visible = new List<int>();
             var aoi = new AoiFilter();

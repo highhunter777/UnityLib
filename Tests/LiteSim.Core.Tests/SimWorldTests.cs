@@ -44,7 +44,7 @@ namespace LiteSim.Tests
             var s = new SimWorldState();
             SimMapData map = TestMap();
 
-            long shooter = s.Spawn(new EntitySlot { Hp = 100, Pos = new SimVector3(0f, 0f, 0f), Yaw = 0f }, out int _);
+            long shooter = s.Spawn(new EntitySlot { Hp = CombatConfig.EntityHp, Pos = new SimVector3(0f, 0f, 0f), Yaw = 0f }, out int _);
             long target = s.Spawn(new EntitySlot { Hp = 1, Pos = new SimVector3(10f, 0f, 0f) }, out int targetSlot);
 
             // 朝向 0 = +X（Cos(0)=1）：目标在正前 10m，一击致死（Hp=1 < 伤害）
@@ -80,8 +80,8 @@ namespace LiteSim.Tests
             var s = new SimWorldState();
             SimMapData map = TestMap();
 
-            long shooter = s.Spawn(new EntitySlot { Hp = 100, Pos = new SimVector3(0f, 0f, 0f), Yaw = 0f }, out int _);
-            s.Spawn(new EntitySlot { Hp = 100, Pos = new SimVector3(10f, 0f, 0f) }, out int targetSlot);
+            long shooter = s.Spawn(new EntitySlot { Hp = CombatConfig.EntityHp, Pos = new SimVector3(0f, 0f, 0f), Yaw = 0f }, out int _);
+            s.Spawn(new EntitySlot { Hp = CombatConfig.EntityHp, Pos = new SimVector3(10f, 0f, 0f) }, out int targetSlot);
 
             var inputs = new[]
             {
@@ -132,7 +132,7 @@ namespace LiteSim.Tests
         public void 命令缓冲_手动Damage命令经FlushCommands结算()
         {
             var s = new SimWorldState();
-            long id = s.Spawn(new EntitySlot { Hp = 100 }, out int slot);
+            long id = s.Spawn(new EntitySlot { Hp = CombatConfig.EntityHp }, out int slot);
 
             s.Cmds.Write(SimCommandKind.Damage, id, 0L, 30);
             SimStep.FlushCommands(s);
@@ -173,8 +173,8 @@ namespace LiteSim.Tests
             var s = new SimWorldState();
             SimMapData map = TestMap();
 
-            long p0 = s.Spawn(new EntitySlot { Hp = 100, Pos = new SimVector3(0f, 0f, 0f), Yaw = 0f }, out int _);
-            long p1 = s.Spawn(new EntitySlot { Hp = 100, Pos = new SimVector3(40f, 0f, 40f), Yaw = SimTrig.Pi }, out int _);
+            long p0 = s.Spawn(new EntitySlot { Hp = CombatConfig.EntityHp, Pos = new SimVector3(0f, 0f, 0f), Yaw = 0f }, out int _);
+            long p1 = s.Spawn(new EntitySlot { Hp = CombatConfig.EntityHp, Pos = new SimVector3(40f, 0f, 40f), Yaw = SimTrig.Pi }, out int _);
 
             // 两玩家相距 40m 且相背而立：每帧都开火但互不命中（也无第三方）→ 每帧恰 2 个 Fire
             var inputs = new[]
@@ -204,9 +204,9 @@ namespace LiteSim.Tests
 
         private static long[] SpawnThree(SimWorldState s)
         {
-            long p0 = s.Spawn(new EntitySlot { Hp = 100, Pos = new SimVector3(0f, 0f, 0f) }, out int _);
-            long p1 = s.Spawn(new EntitySlot { Hp = 100, Pos = new SimVector3(20f, 0f, 0f) }, out int _);
-            long p2 = s.Spawn(new EntitySlot { Hp = 100, Pos = new SimVector3(0f, 0f, 20f) }, out int _);
+            long p0 = s.Spawn(new EntitySlot { Hp = CombatConfig.EntityHp, Pos = new SimVector3(0f, 0f, 0f) }, out int _);
+            long p1 = s.Spawn(new EntitySlot { Hp = CombatConfig.EntityHp, Pos = new SimVector3(20f, 0f, 0f) }, out int _);
+            long p2 = s.Spawn(new EntitySlot { Hp = CombatConfig.EntityHp, Pos = new SimVector3(0f, 0f, 20f) }, out int _);
             return new[] { p0, p1, p2 };
         }
 

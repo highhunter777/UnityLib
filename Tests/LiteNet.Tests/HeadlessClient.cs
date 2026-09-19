@@ -55,7 +55,7 @@ namespace LiteNet.Tests
             for (int i = 0; i < 2; i++)
             {
                 SimVector3 spawn = _map.SpawnPoints[i % _map.SpawnPointCount];
-                world.Spawn(new EntitySlot { Hp = 100, Pos = spawn, Yaw = 0f }, out int _);
+                world.Spawn(new EntitySlot { Hp = CombatConfig.EntityHp, Pos = spawn, Yaw = 0f }, out int _);
             }
             _sim = new RollbackSim(world, _map, IdentityTemplateFor(PlayerId, 2));
         }

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Threading;
 using Cysharp.Threading.Tasks;
 using LiteFramework;
+using LiteSim;
 using Luban;
 using cfg;
 
@@ -36,6 +37,7 @@ namespace LiteGame
             "tbuiform",
             "tbcontententry",
             "tbstrategy",
+            "tbcombatnum",      // 玩法数值（单行表；装载后回填 CombatConfig——两端同源，见《玩法数值解耦审查与Luban表设计》）
         };
 
         private readonly Func<string, CancellationToken, UniTask<byte[]>> _bytesProvider;
@@ -79,7 +81,30 @@ namespace LiteGame
             }
 
             _tables = new Tables(file => new ByteBuf(cache[file]));   // Luban 同步建表，loader 查预取缓存
+            ApplyCombatNumbers(_tables);
             Log.Info($"配置加载完成:{TableDataFiles.Length} 张表", "Config");
+        }
+
+        /// <summary>
+        /// 玩法数值回填（表 → `CombatConfig`）：LiteSim 是零依赖程序集，读表能力只能由外部喂 primitives。
+        /// 表值即手感参数唯一真相；**本类的默认值须与表一致**（L1 守卫用例卡漂移）。
+        /// 服务端读同一表源的 json 产物（`RoomServer/Data/tbcombatnum.json`）——两端同值，受 buildHash 闭包保护。
+        /// </summary>
+        private static void ApplyCombatNumbers(Tables tables)
+        {
+            cfg.combatnum row = tables.Tbcombatnum.Get(1);        // 单行表固定 id=1
+            if (row == null)
+                throw new InvalidOperationException("tbcombatnum 缺 id=1 行（单行数值表）——表源被改坏或生成物过期");
+
+            CombatConfig.LoadFrom(
+                row.MoveSpeed, row.Gravity,
+                row.HitscanRange, row.HitscanRadius, row.HitscanHeight,
+                row.BaseDamage, row.DamageSpread, row.EntityHp);
+
+            Log.Info(
+                $"玩法数值装载：move={row.MoveSpeed} gravity={row.Gravity} " +
+                $"hitscan={row.HitscanRange}/{row.HitscanRadius}/{row.HitscanHeight} " +
+                $"dmg={row.BaseDamage}±{row.DamageSpread} hp={row.EntityHp}", "Config");
         }
     }
 }

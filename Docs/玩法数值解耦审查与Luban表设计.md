@@ -94,3 +94,41 @@ public static void LoadFrom(LiteSimConfigRow row) { ... }
 | ④ | `BaselineSpec`/`SimSandbox`/`Room.Start` 的 Hp=100 改读表值 | 三处硬编码清零 |
 
 **依赖**：`Luban/Data` 表源在本机为空壳——xlsx 定义需按 Luban 格式新建（既有 demo 表可参照）；gen.bat 双 pass 原样可用。
+
+---
+
+## 5. 落地记录（2026-09-19，四批全做完）
+
+| 批 | 状态 | 落地 |
+| --- | --- | --- |
+| ① 表源与生成 | ✅ | `Luban/Data/#combatnum.xlsx`（`id` + 8 字段，单行）+ `__tables__.xlsx` 登记 `TbCombatNum`（value_type `CombatNum`，`index=id`，**group=`c,s`**）→ `gen.bat` 双产物：客户端 bin `Assets/LiteGame/RawFile/Config/tbcombatnum.bytes` + 服务端 json `RoomServer/Data/tbcombatnum.json`；生成物 `Assets/GameData/Generated/{combatnum,Tbcombatnum}.cs` + Lua `cfg/tbcombatnum.lua` |
+| ② 回填与消费 | ✅ | 客户端 `ConfigService`：预取清单增 `tbcombatnum` + 建表后 `ApplyCombatNumbers` 调 `CombatConfig.LoadFrom`；服务端 `RoomServer/CombatNumbers.LoadFromRepo()`（`Program` 启动即装载）；消费点（Input/Movement/Shooting）**零改动**（名字不变） |
+| ③ buildHash 闭包 | ✅ | `gen-build-hash.py` 增 `DATA_TARGETS`（客户端 bin 目录 + 服务端 json 目录，扩展名白名单 `.bytes/.json`）→ **48 文件**（38 源 + 10 数据）；`BuildHashTests` 同步同规则复算 |
+| ④ Hp 硬编码清零 | ✅ | `CombatConfig.SpawnHp`(const) → `EntityHp`(表字段 `entity_hp`)；全仓 `Hp = 100` **31 处清零**（Room.Start / SimSandbox / BaselineSpec / 各测试） |
+
+### 5.1 落地中发现的约束与处置（重要）
+
+**① 服务端拿不到 Luban 运行时** → 设计 §3.2 写"两端读同一份 bin"，但实测 `Luban.Runtime` 是**本机 `file:` 依赖**（《克隆后自备清单》§4：`Packages/manifest.json` 不入库），.NET 8 的 RoomServer **无法引用**。
+**处置**：`gen.bat` 新增 **Pass 1b**——同一份表源额外产出 **json**（`RoomServer/Data/`），服务端用 `System.Text.Json` 解析（零新依赖、可移植）。两端数值仍**同源**（同一次 gen.bat、同一 xlsx），一致性由 buildHash 闭包 + `CombatNumbersTests`（表==代码默认值）双保险。
+> 客户端仍走 bin（既有 YooAsset 链路），服务端走 json——**同源不同编码**，不是两份数据。
+
+**② `mode=one` 未生效** → 单行表最初按 `mode=one` 登记，生成物却是"以首字段 `move_speed` 为键的 map"（`index` 空 → Luban 自动取首字段）。
+**处置**：改为**显式 `id=1` + 常规 map 形态**（与其它表同构，最稳）；访问 `Tables.Tbcombatnum.Get(1)`。
+
+**③ gen.bat 三个坑位（本次踩到并修复两个 + 新增自愈）**：
+- **json pass 会清空 `outputDataDir`** → 首版把 json 输出到客户端 bin 目录，**把 4 张表的 `.bytes` 全删了**（git status 立现）。处置：json 输出改到 `RoomServer/Data/`（服务端目录），与客户端数据目录物理隔离。
+- **cs-bin pass 删除 `Luban.Tables.asmdef`**（记录在案的老坑）：本次复现 → `cfg` 类型在 Unity 侧整体消失（`CS0246` 一大片）。**长期对策已落**：`gen.bat` 新增 **Pass 4** 自动 `git -C <root> checkout --` 恢复该 asmdef + meta（幂等自愈，跑完 gen 不再需要手工对账这一项）。
+- **`gen_lua_keys.py` 输出路径过时**（Shell 分层重排后未同步）：写到 `Scripts/Runtime/Bridge/Generated/`（旧路径）→ 与 `Shell/Bridge/Generated/` 的**同名类重复定义**（`CS0101`）。**根因已修**：路径补 `Shell/`。
+
+**④ L2 门禁两处噪点（顺带修）**：
+- 新鲜度守卫的 `eval` 在"编辑器正忙（编译中）"时会失败 → 改为**失败只告警不中断**（由新鲜度断言与编译状态给结论）。
+- 控制台缓冲里**上一次失败编译的 error** 会被判成本次失败（实测误报）→ 守卫前先 `clear_console`，再强制重编，再读控制台。
+
+### 5.2 验收
+
+| 项 | 结果 |
+| --- | --- |
+| L1 | **332 绿**（LiteFramework 203 / LiteSim 75 / **LiteNet 54**：含 6 条 `CombatNumbersTests`） |
+| L2 | **退出码 0**：meta 10921 / 程序集新鲜 / 编译无失败 / 控制台 0 错 / **EditMode 6/6**（含 2 条 `CombatNumbersEditModeTests`：预取清单含表 + bin 可建表且与运行值一致） |
+| 一致性守卫 | ① 表值与 `CombatConfig` 默认值一致（漂移即红）② 表数据进 buildHash（48 文件）→ 数值不同**直接拒进房** |
+| 改表生效 | 改 xlsx → 跑 gen.bat → 重启（客户端 `ConfigService` / 服务端 `Program` 装载）即生效，**不改代码、不重编译** |

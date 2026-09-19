@@ -5,8 +5,10 @@ namespace LiteSim
     /// SimConfig 只装"确定性架构怎么搭"；两者生命周期不同：前者可调表迭代，后者编译期锁死）。
     ///
     /// - 默认值 = M8 灰盒实测值（原 SimConfig 玩法段迁移，消费点改名同步）；
-    /// - Luban 接缝：`tb_combat_num` 表设计见《玩法数值解耦审查与Luban表设计》——`LoadFrom` 预留装载口，
-    ///   表链路落地后由启动装配调用（表缺失 = 兜底值 + 告警）；装载后数值两端一致（同表同 bin）。
+    /// - **Luban 表链路已通（2026-09-19）**：表源 `Luban/Data/#combatnum.xlsx` → `gen.bat` 双产物
+    ///   （客户端 bin `Assets/LiteGame/RawFile/Config/tbcombatnum.bytes`；服务端 json `RoomServer/Data/tbcombatnum.json`）
+    ///   → 启动装配调 <see cref="LoadFrom"/> 回填（客户端 `ConfigService`；服务端 `Program`）。
+    ///   **本类的默认值必须与表值一致**（L1 守卫用例 `CombatNumbersTests` 卡住漂移）；装载后两端同值（表数据进 buildHash，不一致直接拒进房）。
     /// - 确定性：全部 float/int 常量语义不变（位级确定的输入，无运算）。
     /// </summary>
     public static class CombatConfig
@@ -39,15 +41,15 @@ namespace LiteSim
         /// ——自原 `+ rng.NextRange(0, 3) - 1` 表达式提取，语义等价 ±1。</summary>
         public static int DamageSpread { get; private set; } = 1;
 
-        /// <summary>出生 HP（实体初始生命；M11 实体表化前的过渡位）。</summary>
-        public const int SpawnHp = 100;
+        /// <summary>出生 HP（实体初始生命）。**表字段 `entity_hp`**（M11 实体表化前并入本表：单一职责暂借位）。</summary>
+        public static int EntityHp { get; private set; } = 100;
 
         /// <summary>
         /// Luban 表装载接缝（批⑤/M11 接线）：tb_combat_num 读取后调用，逐字段覆写。
         /// 当前表链路未落地——保留默认值；参数未做合法性钳制（来源是策划表而非外部输入）。
         /// </summary>
         public static void LoadFrom(float moveSpeed, float gravity, float hitscanRange, float hitscanRadius,
-            float hitscanHeight, int baseDamage, int damageSpread)
+            float hitscanHeight, int baseDamage, int damageSpread, int entityHp)
         {
             MoveSpeed = moveSpeed;
             Gravity = gravity;
@@ -56,6 +58,7 @@ namespace LiteSim
             HitscanHeight = hitscanHeight;
             BaseDamage = baseDamage;
             DamageSpread = damageSpread;
+            EntityHp = entityHp;
         }
     }
 }

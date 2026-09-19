@@ -42,8 +42,8 @@ namespace LiteNet.Tests
         {
             var map = BuildMap();
             var state = new SimWorldState { RngState = 7UL };
-            state.Spawn(new EntitySlot { Hp = 100, Pos = map.SpawnPoints[0] }, out _);
-            state.Spawn(new EntitySlot { Hp = 100, Pos = map.SpawnPoints[1] }, out _);
+            state.Spawn(new EntitySlot { Hp = CombatConfig.EntityHp, Pos = map.SpawnPoints[0] }, out _);
+            state.Spawn(new EntitySlot { Hp = CombatConfig.EntityHp, Pos = map.SpawnPoints[1] }, out _);
             var ring = new SnapshotRing(SimConfig.LagCompHistory);
             var lag = new LagCompensator(state, PlayerCount, ring);
 
@@ -99,8 +99,8 @@ namespace LiteNet.Tests
         {
             var map = BuildMap();
             var state = new SimWorldState();
-            state.Spawn(new EntitySlot { Hp = 100, Pos = map.SpawnPoints[0] }, out _);
-            state.Spawn(new EntitySlot { Hp = 100, Pos = map.SpawnPoints[1] }, out _);
+            state.Spawn(new EntitySlot { Hp = CombatConfig.EntityHp, Pos = map.SpawnPoints[0] }, out _);
+            state.Spawn(new EntitySlot { Hp = CombatConfig.EntityHp, Pos = map.SpawnPoints[1] }, out _);
             var ring = new SnapshotRing(SimConfig.LagCompHistory);
             var lag = new LagCompensator(state, PlayerCount, ring);
 
@@ -119,7 +119,7 @@ namespace LiteNet.Tests
         {
             var map = BuildMap();
             var state = new SimWorldState();
-            state.Spawn(new EntitySlot { Hp = 100, Pos = map.SpawnPoints[0] }, out _);
+            state.Spawn(new EntitySlot { Hp = CombatConfig.EntityHp, Pos = map.SpawnPoints[0] }, out _);
             var ring = new SnapshotRing(SimConfig.LagCompHistory);
             var lag = new LagCompensator(state, PlayerCount, ring);
 
@@ -132,8 +132,8 @@ namespace LiteNet.Tests
         {
             var map = BuildMap();
             var state = new SimWorldState { RngState = 99UL };
-            state.Spawn(new EntitySlot { Hp = 100, Pos = map.SpawnPoints[0] }, out _);
-            state.Spawn(new EntitySlot { Hp = 100, Pos = map.SpawnPoints[1] }, out _);
+            state.Spawn(new EntitySlot { Hp = CombatConfig.EntityHp, Pos = map.SpawnPoints[0] }, out _);
+            state.Spawn(new EntitySlot { Hp = CombatConfig.EntityHp, Pos = map.SpawnPoints[1] }, out _);
             var ring = new SnapshotRing(SimConfig.LagCompHistory);
             var lag = new LagCompensator(state, PlayerCount, ring);
 

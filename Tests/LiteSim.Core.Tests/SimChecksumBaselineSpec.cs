@@ -37,13 +37,13 @@ namespace LiteSim.Tests
         {
             var s = new SimWorldState { RngState = WorldSeed };
 
-            s.Spawn(new EntitySlot { Hp = 100, Pos = new SimVector3(0f, 0f, 0f), Yaw = 0f }, out int _);
-            s.Spawn(new EntitySlot { Hp = 100, Pos = new SimVector3(10f, 0f, 10f), Yaw = SimTrig.Pi }, out int _);
+            s.Spawn(new EntitySlot { Hp = CombatConfig.EntityHp, Pos = new SimVector3(0f, 0f, 0f), Yaw = 0f }, out int _);
+            s.Spawn(new EntitySlot { Hp = CombatConfig.EntityHp, Pos = new SimVector3(10f, 0f, 10f), Yaw = SimTrig.Pi }, out int _);
 
             for (int i = 0; i < TargetCount; i++)
             {
                 float z = -10f + 5f * i;
-                s.Spawn(new EntitySlot { Hp = 100, Pos = new SimVector3(20f, 0f, z) }, out int _);
+                s.Spawn(new EntitySlot { Hp = CombatConfig.EntityHp, Pos = new SimVector3(20f, 0f, z) }, out int _);
             }
             return s;
         }

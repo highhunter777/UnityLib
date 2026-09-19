@@ -66,7 +66,7 @@ namespace LiteSim.Tests
         {
             var s = new SimWorldState();
 
-            var proto = new EntitySlot { Hp = 100, Pos = new SimVector3(1f, 0f, 2f) };
+            var proto = new EntitySlot { Hp = CombatConfig.EntityHp, Pos = new SimVector3(1f, 0f, 2f) };
             long id = s.Spawn(in proto, out int slotIndex);
             Assert.True(id > 0L, "首个分配 version=1，Id 必为正");
             Assert.True(slotIndex >= 0);

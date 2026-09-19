@@ -21,6 +21,15 @@ namespace LiteNet.Tests
             "Assets/LiteNet/Protocol",
         };
 
+        /// <summary>表数据目标（与生成器 DATA_TARGETS 对齐）：改动数值即改 hash → 旧客户端被拒进房。</summary>
+        private static readonly string[] DataTargets =
+        {
+            "Assets/LiteGame/RawFile/Config",
+            "RoomServer/Data",
+        };
+
+        private static readonly string[] DataExtensions = { ".bytes", ".json" };
+
         private static readonly string[] SkipDirs = { "bin", "obj", ".dotnet", "__pycache__", "Editor" };
         private const string SelfName = "BuildHash.g.cs";
 
@@ -58,6 +67,22 @@ namespace LiteNet.Tests
                     files.Add(full);
                 }
             }
+            foreach (string target in DataTargets)
+            {
+                string baseDir = Path.Combine(root, target.Replace('/', Path.DirectorySeparatorChar));
+                if (!Directory.Exists(baseDir)) continue;
+                foreach (string full in Directory.EnumerateFiles(baseDir, "*", SearchOption.AllDirectories))
+                {
+                    string name = Path.GetFileName(full);
+                    bool isData = false;
+                    foreach (string ext in DataExtensions)
+                        if (name.EndsWith(ext, StringComparison.Ordinal)) { isData = true; break; }
+                    if (!isData) continue;
+                    if (IsUnderSkipDir(root, full)) continue;
+                    files.Add(full);
+                }
+            }
+
             files.Sort(CompareOrdinalRelative(root));
             return files;
         }

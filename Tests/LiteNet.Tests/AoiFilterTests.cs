@@ -20,7 +20,7 @@ namespace LiteNet.Tests
         {
             var s = new SimWorldState();
             foreach (var (x, z) in positions)
-                s.Spawn(new EntitySlot { Hp = 100, Pos = new SimVector3(x, 0f, z) }, out _);
+                s.Spawn(new EntitySlot { Hp = CombatConfig.EntityHp, Pos = new SimVector3(x, 0f, z) }, out _);
             return s;
         }
 
@@ -89,8 +89,8 @@ namespace LiteNet.Tests
             SimWorldState Build()
             {
                 var s = new SimWorldState { RngState = 42UL };
-                s.Spawn(new EntitySlot { Hp = 100, Pos = map.SpawnPoints[0] }, out _);
-                s.Spawn(new EntitySlot { Hp = 100, Pos = map.SpawnPoints[1] }, out _);
+                s.Spawn(new EntitySlot { Hp = CombatConfig.EntityHp, Pos = map.SpawnPoints[0] }, out _);
+                s.Spawn(new EntitySlot { Hp = CombatConfig.EntityHp, Pos = map.SpawnPoints[1] }, out _);
                 return s;
             }
 

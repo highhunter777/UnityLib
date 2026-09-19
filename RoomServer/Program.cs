@@ -28,6 +28,9 @@ for (int i = 0; i < args.Length; i++)
 Console.WriteLine($"[RoomServer] 启动（端口 {config.Port} / 房间 {config.RoomId} / {config.ExpectedPlayers} 人房 / {SimConfig.TickRate}Hz 权威步 / {SimConfig.SnapshotHz}Hz 快照）");
 Console.WriteLine($"[RoomServer] buildHash={ServerHost.ServerBuildHash}（源码内容哈希——Sim 或协议一改即变）");
 
+// 玩法数值：读 gen.bat Pass 1b 的 json 产物（与客户端同一表源；缺表/坏表 → fail-fast，不带着错数值跑权威局）
+CombatNumbers.LoadFromRepo();
+
 using var transport = new LiteNet.Transport.KcpTransportServer();
 using var host = new ServerHost(transport, config);
 host.Ops.PrintEnabled = !quiet;

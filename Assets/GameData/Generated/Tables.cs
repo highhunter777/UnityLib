@@ -13,6 +13,7 @@ namespace cfg
 {
 public partial class Tables
 {
+    public Tbcombatnum Tbcombatnum {get; }
     public Tbcontententry Tbcontententry {get; }
     public demo.Tbitem Tbitem {get; }
     public Tbstrategy Tbstrategy {get; }
@@ -20,6 +21,7 @@ public partial class Tables
 
     public Tables(System.Func<string, ByteBuf> loader)
     {
+        Tbcombatnum = new Tbcombatnum(loader("tbcombatnum"));
         Tbcontententry = new Tbcontententry(loader("tbcontententry"));
         Tbitem = new demo.Tbitem(loader("demo_tbitem"));
         Tbstrategy = new Tbstrategy(loader("tbstrategy"));
@@ -29,6 +31,7 @@ public partial class Tables
     
     private void ResolveRef()
     {
+        Tbcombatnum.ResolveRef(this);
         Tbcontententry.ResolveRef(this);
         Tbitem.ResolveRef(this);
         Tbstrategy.ResolveRef(this);

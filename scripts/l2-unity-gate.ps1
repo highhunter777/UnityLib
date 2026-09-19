@@ -135,13 +135,22 @@ if ((Test-Path $descriptor) -and -not $RunEditModeTests) {
             #     对策：无条件 Refresh(ForceSynchronousImport) + RequestScriptCompilation 并等编译收敛
             #     （幂等：无改动时几秒内返回）。
             $before = Get-NewestSourceTime
-            Invoke-PipelineCommand 'eval' @('UnityEditor.AssetDatabase.Refresh(UnityEditor.ImportAssetOptions.ForceSynchronousImport); UnityEditor.Compilation.CompilationPipeline.RequestScriptCompilation();') | Out-Null
-            $waited = 0
-            while ($waited -lt 90) {
-                Start-Sleep -Seconds 3
-                $waited += 3
-                $busy = Invoke-PipelineCommand 'eval' @('return UnityEditor.EditorApplication.isCompiling ? 1 : 0;')
-                if ($busy -notmatch '"result":\s*"?1') { break }
+            try {
+                # 先清控制台缓冲：否则"上一次失败编译"的 error 会留在缓冲里被判成本次失败（2026-09-19 实测误报）
+                Invoke-PipelineCommand 'clear_console' | Out-Null
+                Invoke-PipelineCommand 'eval' @('UnityEditor.AssetDatabase.Refresh(UnityEditor.ImportAssetOptions.ForceSynchronousImport); UnityEditor.Compilation.CompilationPipeline.RequestScriptCompilation();') | Out-Null
+                $waited = 0
+                while ($waited -lt 90) {
+                    Start-Sleep -Seconds 3
+                    $waited += 3
+                    $busy = Invoke-PipelineCommand 'eval' @('return UnityEditor.EditorApplication.isCompiling ? 1 : 0;')
+                    if ($busy -notmatch '"result":\s*"?1') { break }
+                }
+            }
+            catch {
+                # 刷新是"尽力而为"：编辑器正忙（编译中/域重载）时 eval 会失败——不中断，
+                # 由下面的新鲜度断言与编译状态给结论（否则一次瞬时失败会把整个 L2 判红）
+                Write-Note "新鲜度守卫：Refresh/编译请求未完成（$($_.Exception.Message)）——继续按现状校验"
             }
             $after = Get-NewestAssemblyTime
             if ($before -gt $after) {

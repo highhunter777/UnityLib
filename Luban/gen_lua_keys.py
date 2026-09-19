@@ -11,7 +11,7 @@ import re
 
 DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "Data")
 OUT_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                        "..", "Assets", "LiteGame", "Scripts", "Runtime", "Bridge", "Generated", "LuaKeys.g.cs")
+                        "..", "Assets", "LiteGame", "Scripts", "Runtime", "Shell", "Bridge", "Generated", "LuaKeys.g.cs")
 
 PATH_FIELDS = ("lua_path", "entry")               # 注册表路径列字段名
 ROOTS = ("UI", "Content", "Strategies")           # §4.4 三个固定根
