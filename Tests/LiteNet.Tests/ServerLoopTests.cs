@@ -16,7 +16,7 @@ namespace LiteNet.Tests
         [Fact]
         public void 空载跑一秒_节拍数与理论值一致且无掉债()
         {
-            using var host = new ServerHost(new KcpTransportServer(), Port);
+            using var host = new ServerHost(new KcpTransportServer(), new RoomConfig { Port = Port });
             host.Ops.PrintEnabled = false;
             var loop = new ServerLoop(host);
 
@@ -35,7 +35,7 @@ namespace LiteNet.Tests
         [Fact]
         public void 跑满时长即停_不因追赶而超出()
         {
-            using var host = new ServerHost(new KcpTransportServer(), Port + 1);
+            using var host = new ServerHost(new KcpTransportServer(), new RoomConfig { Port = Port + 1 });
             host.Ops.PrintEnabled = false;
             var loop = new ServerLoop(host);
 
@@ -51,7 +51,7 @@ namespace LiteNet.Tests
         [Fact]
         public void 过载时_追赶有上界并记账丢债_不会无界满核()
         {
-            using var host = new ServerHost(new KcpTransportServer(), Port + 2);
+            using var host = new ServerHost(new KcpTransportServer(), new RoomConfig { Port = Port + 2 });
             host.Ops.PrintEnabled = false;
             // 单帧体 20ms（模拟过载：> 16ms 锚点周期，必然持续落后）。
             // 注：Windows 的 Sleep(8) 因定时器精度（~15.6ms）也会超时构成过载，但 Linux（1ms 精度）真睡 8ms

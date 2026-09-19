@@ -42,7 +42,7 @@ namespace LiteNet.Tests
             Client.OnStartGame += OnStartGame;
             Client.OnSnapshot += OnSnapshot;
             // 连接即自动请求进房：Join 延迟到 transport OnConnected（kcp2k cookie 握手完成后）再发
-            transport.OnConnected += () => Client.SendJoin(RoomServer.ServerHost.DefaultRoomId, "harness", RoomServer.ServerHost.ServerBuildHash);
+            transport.OnConnected += () => Client.SendJoin(RoomConfig.Default().RoomId, "harness", RoomServer.ServerHost.ServerBuildHash);
             Client.Connect("127.0.0.1", 27778);
         }
 

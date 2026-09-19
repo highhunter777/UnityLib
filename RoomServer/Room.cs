@@ -22,7 +22,11 @@ namespace RoomServer
     /// </summary>
     public sealed class Room
     {
-        public const int ExpectedPlayers = 2;
+        /// <summary>装配参数（容量/房间号/端口/seed 策略——2026-09-19 审计建议 2 收口）。</summary>
+        public readonly RoomConfig Config;
+
+        /// <summary>期望人数（转发 <see cref="Config"/>；席位/输入槽/实体表按此定容）。</summary>
+        public int ExpectedPlayers => Config.ExpectedPlayers;
 
         public readonly string RoomId;
         public readonly SimWorldState AuthSim;         // 权威唯一真相
@@ -41,7 +45,7 @@ namespace RoomServer
         /// <summary>成员序（playerId 升序，广播按此序——确定性）。</summary>
         private readonly Session[] _playerSessions;
         /// <summary>全体输入历史（重连补发用；§5.6 —— 环容量 <see cref="SimConfig.MaxInputHistory"/>，够 32 帧）。</summary>
-        private readonly InputHistory _recentInputs = new InputHistory(SimConfig.MaxInputHistory, ExpectedPlayers);
+        private readonly InputHistory _recentInputs;   // ctor 内按配置容量构造
 
         public int NextPlayerId;
         public bool Started;
@@ -57,17 +61,20 @@ namespace RoomServer
         public long BackpressureThrottled => Broadcaster.BackpressureThrottled;
         public SnapshotDiffer Differ => Broadcaster.Differ;   // Ops 快照尺寸统计转发
 
-        public Room(string roomId)
+        public Room(RoomConfig config)
         {
-            RoomId = roomId;
+            Config = config ?? throw new System.ArgumentNullException(nameof(config));
+            RoomId = config.RoomId;
             Map = BuildStandardMap();
             AuthSim = new SimWorldState();
             SnapshotHistory = new SnapshotRing(SimConfig.LagCompHistory);
-            Gate = new InputGate(ExpectedPlayers);
-            LagComp = new LagCompensator(AuthSim, ExpectedPlayers, SnapshotHistory);
-            _entityIds = new long[ExpectedPlayers];
-            _frameInputs = new SimInputFrame[ExpectedPlayers];
-            _playerSessions = new Session[ExpectedPlayers];
+            int players = ExpectedPlayers;                     // 配置定容（席位/输入槽/实体表/回溯环一致）
+            Gate = new InputGate(players);
+            LagComp = new LagCompensator(AuthSim, players, SnapshotHistory);
+            _entityIds = new long[players];
+            _frameInputs = new SimInputFrame[players];
+            _playerSessions = new Session[players];
+            _recentInputs = new InputHistory(SimConfig.MaxInputHistory, players);
             Broadcaster = new RoomBroadcaster(_playerSessions, _entityIds, new SnapshotDiffer());
         }
 
@@ -117,9 +124,13 @@ namespace RoomServer
         public long EntityIdOf(int playerId) =>
             playerId >= 0 && playerId < ExpectedPlayers ? _entityIds[playerId] : 0L;
 
-        /// <summary>StartGame：世界按种子生成，玩家落出生点（§4.5 权威定序——StartGame 后循环才消费输入）。</summary>
+        /// <summary>
+        /// StartGame：世界按种子生成，玩家落出生点（§4.5 权威定序——StartGame 后循环才消费输入）。
+        /// seed = 0 → 取配置策略（<see cref="RoomConfig.Seed"/> 非 0 用配置值，否则服务器时钟低 31 位，下发客户端）。
+        /// </summary>
         public void Start(long seed)
         {
+            if (seed == 0) seed = Config.Seed != 0 ? Config.Seed : (System.DateTime.Now.Ticks & 0x7FFFFFFFL);
             Seed = seed;
             AuthSim.RngState = (ulong)seed;
 

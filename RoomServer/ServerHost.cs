@@ -16,7 +16,7 @@ namespace RoomServer
     /// Transport（IRoomTransport）+ Sessions + Rooms + **单循环**（MVP 不拆 I/O 线程，§10.2——
     /// tick 顺序：TickIncoming → 信令/输入路由 → 房间权威步 → TickOutgoing）。
     ///
-    /// MVP 装配参数：端口 17777（默认）、房间号 Room-A（无 MatchMaker）、期望 2 人/房、
+    /// MVP 装配参数由 <see cref="RoomConfig"/> 提供（默认：端口 17777 / 房间 Room-A / 2 人房——M10 审计建议 2/3 收口）、
     /// **buildHash = <see cref="BuildHash.Value"/>**（源码内容哈希，两端不一 = 逻辑/协议版本不同 → 拒绝进房）。
     /// E3：连接 cookie 由 kcp2k V1.41 内建（白得）；per-IP 限速与重连票据见 <see cref="SessionManager"/>/<see cref="ReconnectService"/>。
     /// </summary>
@@ -24,8 +24,6 @@ namespace RoomServer
     {
         /// <summary>服务器版本锚点 = 源码内容哈希（批③ 从字面量串切换到生成器：Sim 或协议一改，握手即拒）。</summary>
         public const string ServerBuildHash = BuildHash.Value;
-        public const string DefaultRoomId = "Room-A";
-        public const int Port = 17777;
         public const long OpsIntervalMs = 5000;
 
         private readonly KcpTransportServer _transport;
@@ -39,20 +37,23 @@ namespace RoomServer
         private bool _disposed;
 
         public SessionManager Sessions => _sessions;
-        public Room Room { get; } = new Room(DefaultRoomId);
+        public RoomConfig Config { get; }
+        public Room Room { get; }
         public Ops Ops => _ops;
 
-        public ServerHost(KcpTransportServer transport, int port)
+        public ServerHost(KcpTransportServer transport, RoomConfig config = null)
         {
             _transport = transport ?? throw new ArgumentNullException(nameof(transport));
-            _rooms[DefaultRoomId] = Room;                     // MVP：预置单房间注册（Pump 遍历 _rooms 驱动权威步）
+            Config = config ?? RoomConfig.Default();
+            Room = new Room(Config);
+            _rooms[Config.RoomId] = Room;                     // MVP：预置单房间注册（Pump 遍历 _rooms 驱动权威步）
             Room.SendTo = SendToSession;
             Room.Broadcaster.SendTo = SendToSession;   // 广播器与 Room 共用同一发送出口（2026-09-19 拆分接线）
             Room.OnInputAccepted = (session, message) => { _ops.InputPackets++; _ops.AckObserved++; };
             _transport.OnConnected += OnTransportConnected;
             _transport.OnData += OnTransportData;
             _transport.OnDisconnected += OnTransportDisconnected;
-            _transport.Start(port);   // Start 必须显式调用——此前遗漏导致服务器不监听（握手全失败）
+            _transport.Start(Config.Port);   // Start 必须显式调用——此前遗漏导致服务器不监听（握手全失败）
         }
 
         public void Dispose()
@@ -146,7 +147,7 @@ namespace RoomServer
 
             if (!Room.Started && Room.NextPlayerId >= Room.ExpectedPlayers)  // 满员自动 StartGame（无 MatchMaker）
             {
-                Room.Start(DateTime.Now.Ticks & 0x7FFFFFFFL);
+                Room.Start(Config.Seed);   // 0 = 按 RoomConfig 策略（时钟）/ 非 0 = 固定 seed
                 foreach (var kv in Room.AllMembers())
                 {
                     SendToSession(kv.Value, PacketType.StartGame, new Proto.StartGame

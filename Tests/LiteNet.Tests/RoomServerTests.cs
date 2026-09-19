@@ -22,7 +22,33 @@ namespace LiteNet.Tests
         private readonly ServerHost _host;
         private readonly List<KcpTransportClient> _clients = new List<KcpTransportClient>();
 
-        public RoomServerTests() => _host = new ServerHost(new KcpTransportServer(), Port);
+        public RoomServerTests() => _host = new ServerHost(new KcpTransportServer(), new RoomConfig { Port = Port });
+
+        /// <summary>
+        /// 房间容量由配置决定（M10 架构审查·建议 2 验证，2026-09-19）：
+        /// 4 人房（M11 demo §9 验收形态）可满员、第五人被拒；席位/实体表/输入门/回溯环随配置定容。
+        /// 此举把"容量写死"的隐患钉在用例上——将来有人改回常量即红。
+        /// </summary>
+        [Fact]
+        public void 房间容量_由配置决定_四人房满员且第五人被拒()
+        {
+            var config = new RoomConfig { RoomId = "Four", ExpectedPlayers = 4, Seed = 12345 };
+            var room = new Room(config);
+
+            Assert.Equal(4, room.ExpectedPlayers);
+            for (int i = 0; i < 4; i++)
+            {
+                var session = new Session(i, 0);
+                Assert.Equal(i, room.AssignPlayerId(session));       // 席位按配置容量分配
+            }
+            Assert.Equal(-1, room.AssignPlayerId(new Session(99, 0)));   // 满员：第五人被拒
+            Assert.Equal(new[] { 0, 1, 2, 3 }, room.MemberIds());
+
+            room.Start(0);                                            // seed=0 → 走配置策略（本用例固定 12345）
+            Assert.Equal(12345L, room.Seed);
+            Assert.True(room.Started);
+            for (int i = 0; i < 4; i++) Assert.True(room.EntityIdOf(i) != 0L);   // 4 个实体都已生成
+        }
 
         public void Dispose()
         {
@@ -97,7 +123,7 @@ namespace LiteNet.Tests
         {
             client.Send(new ArraySegment<byte>(
                 PacketCodec.Encode(PacketType.Join,
-                    new Proto.JoinRequest { RoomId = ServerHost.DefaultRoomId, Token = "test", BuildHash = hash })), true);
+                    new Proto.JoinRequest { RoomId = RoomConfig.Default().RoomId, Token = "test", BuildHash = hash })), true);
         }
 
         // ---- 用例 ----

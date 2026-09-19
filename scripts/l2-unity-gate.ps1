@@ -105,6 +105,21 @@ function Get-JsonInt([string]$text, [string]$key) {
     return -1
 }
 
+# 新鲜度守卫用：Assets 下最新 .cs 的写入时间 / Library/ScriptAssemblies 下最新 .dll 的写入时间
+function Get-NewestSourceTime {
+    $files = Get-ChildItem -Path (Join-Path $ProjectPath 'Assets') -Recurse -Filter *.cs -File -ErrorAction SilentlyContinue
+    if (-not $files) { return [datetime]::MinValue }
+    return ($files | Sort-Object LastWriteTime -Descending | Select-Object -First 1).LastWriteTime
+}
+
+function Get-NewestAssemblyTime {
+    $dir = Join-Path $ProjectPath 'Library/ScriptAssemblies'
+    if (-not (Test-Path $dir)) { return [datetime]::MinValue }
+    $dlls = Get-ChildItem -Path $dir -Filter *.dll -File -ErrorAction SilentlyContinue
+    if (-not $dlls) { return [datetime]::MinValue }
+    return ($dlls | Sort-Object LastWriteTime -Descending | Select-Object -First 1).LastWriteTime
+}
+
 if ((Test-Path $descriptor) -and -not $RunEditModeTests) {
     Write-Step '② Unity 侧状态（编辑器在跑 → 经 Pipeline，无需关闭编辑器）'
     if (-not $unityAvailable) {
@@ -114,6 +129,28 @@ if ((Test-Path $descriptor) -and -not $RunEditModeTests) {
         $desc = Get-Content $descriptor -Raw | ConvertFrom-Json
         Write-Note "已连接编辑器：port $($desc.port) / pid $($desc.pid) / $($desc.unityVersion)"
         try {
+            # ③ 新鲜度守卫（2026-09-19 加）：**先把源码刷进程序集，再谈编译状态**
+            # 坑：外部改 .cs 后 Unity 不会自动导入（AssetDatabase 未 Refresh）→
+            #     recompile_status 仍报 up_to_date、EditMode 用例跑的是**旧程序集** → L2 假绿。
+            #     对策：无条件 Refresh(ForceSynchronousImport) + RequestScriptCompilation 并等编译收敛
+            #     （幂等：无改动时几秒内返回）。
+            $before = Get-NewestSourceTime
+            Invoke-PipelineCommand 'eval' @('UnityEditor.AssetDatabase.Refresh(UnityEditor.ImportAssetOptions.ForceSynchronousImport); UnityEditor.Compilation.CompilationPipeline.RequestScriptCompilation();') | Out-Null
+            $waited = 0
+            while ($waited -lt 90) {
+                Start-Sleep -Seconds 3
+                $waited += 3
+                $busy = Invoke-PipelineCommand 'eval' @('return UnityEditor.EditorApplication.isCompiling ? 1 : 0;')
+                if ($busy -notmatch '"result":\s*"?1') { break }
+            }
+            $after = Get-NewestAssemblyTime
+            if ($before -gt $after) {
+                Write-Bad "源码新于程序集（最新源码 $($before.ToString('HH:mm:ss')) > 最新程序集 $($after.ToString('HH:mm:ss'))）——Unity 未重建，EditMode 用例会跑旧代码。请检查编译或手工 Refresh"
+            }
+            else {
+                Write-Ok "程序集新鲜（源码 ≤ 程序集：$($before.ToString('HH:mm:ss')) ≤ $($after.ToString('HH:mm:ss'))）"
+            }
+
             $rec = Invoke-PipelineCommand 'recompile_status'
             Write-Host "  recompile_status: $($rec.Trim())" -ForegroundColor DarkGray
             if ($rec -match '"compilationFailed"\s*:\s*true' -or $rec -match '"failed"\s*:\s*true') { Write-Bad 'Unity 编译失败（recompile_status.failed/compilationFailed=true）' }

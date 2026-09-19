@@ -32,7 +32,7 @@ namespace LiteNet.Tests
 
         private static (Room room, Capture capture, Session s1, Session s2) BuildStartedRoom()
         {
-            var room = new Room("TestRoom");
+            var room = new Room(new RoomConfig { RoomId = "TestRoom" });
             var capture = new Capture();
             room.SendTo = (session, type, msg, reliable) => capture.Sent.Add((session, type, msg, reliable));
             room.Broadcaster.SendTo = room.SendTo;   // 广播面拆分后共用同一捕获（快照经 Broadcaster 发出）

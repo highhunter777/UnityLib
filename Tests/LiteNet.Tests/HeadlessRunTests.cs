@@ -39,7 +39,7 @@ namespace LiteNet.Tests
         public HeadlessRunTests()
         {
             _serverTransport = new KcpTransportServer();
-            _host = new ServerHost(_serverTransport, Port);
+            _host = new ServerHost(_serverTransport, new RoomConfig { Port = Port });
         }
 
         public void Dispose()

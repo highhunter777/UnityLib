@@ -182,6 +182,7 @@ namespace LiteSim
             {
                 // 超前/太老：权威态直接覆盖（快照覆盖兜底），预测从新基线继续
                 authoritative.CopyTo(_state);
+                PrepareNext(_state.Frame + 1);                          // 与 replayed 路径同款：新基线确立后刷新下帧输入
                 _reconcileCount++;
                 if (OnReconcile != null) OnReconcile(frame);
                 return true;
@@ -204,6 +205,7 @@ namespace LiteSim
                 _state.Events.Clear();                          // 重放期事件不消费即清（决策⑫）
             }
 
+            PrepareNext(_state.Frame + 1);                      // 重放后刷新下帧输入基线（与 ExecuteRollback 对称）
             _reconcileCount++;
             if (OnReconcile != null) OnReconcile(frame);
             return true;
