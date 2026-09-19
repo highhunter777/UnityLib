@@ -30,6 +30,10 @@ namespace LiteNet.Protocol
     {
         private readonly SimWorldStateSnapshot _baseline = new SimWorldStateSnapshot();
         private readonly AoiFilter _aoi = new AoiFilter();          // 实例持有网格（多房间/多实例互不串味）
+
+        /// <summary>AOI 网格外活体数（诊断/Ops）：>0 = 地图超出 `SimConfig.AoiGridExtentMeters`——
+        /// 已按视点距离兜底不漏发，但应把覆盖半径调大（否则每帧多一圈距离判定）。</summary>
+        public int AoiOutsideCount => _aoi.OutsideCount;
         private readonly List<int> _visible = new List<int>();
         private readonly List<int> _changed = new List<int>();      // 本帧"与基线不同"的**可见全图**槽位
         private int _lastBroadcastFrame = -1;

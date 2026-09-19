@@ -18,16 +18,44 @@ namespace LiteNet.Protocol
     /// **实例持有网格**（2026-09-18 批③ 修正）：早期实现用静态缓存，只按帧号失效 → 多房间/多测试世界
     /// 在同一帧号上互相串味（实测：并发用例互相污染，可见集合多出别的世界的实体）。
     /// 现在网格归实例所有（每个 <see cref="SnapshotDiffer"/>/房间一份），并按 **(世界实例, 帧号)** 键失效。
+    ///
+    /// **2026-09-19 审查修正三处**：
+    /// ① **网格外实体不再无声漏发**：原先 `_outside` 只被收集、从不被消费 → 一旦有实体落在外（地图大于栅格
+    ///    覆盖范围、或未来的传送类效果），它会从**所有人的快照里消失**（客户端静默分叉 ✗）。
+    ///    现在按**视点距离**决定是否可见（<c>dx²+dz² ≤ radius²</c> → 加入）——"永不漏发"落到实处；
+    ///    并暴露 <see cref="OutsideCount"/> 供 Ops/测试观测（&gt;0 = 栅格未覆盖地图，应同步
+    ///    <see cref="SimConfig.AoiGridExtentMeters"/>）。
+    /// ② **栅格范围单一来源**：`GridDim`/`GridOrigin` 由 `SimConfig.AoiGridExtentMeters` 与
+    ///    `SimConfig.AoiCellSize` **派生**（原先硬编码 128×128，与格边长分处两地，地图扩大要改两处）。
+    /// ③ **格号换算去掉多余间接层**：原先 `KeyOf` 内部再包一次 `CellOf`；现在就地算。
+    ///    （纯可读性整理——**不宣称性能收益**：每轴一次除法本就不可避免，256 槽/帧量级可忽略。）
     /// </summary>
     public sealed class AoiFilter
     {
-        private const int GridDim = 128;            // 128×128 格（格边长 10m → 覆盖 ±640m，远超 MVP 地图 ±50m）
-        private const int GridOrigin = -64;         // 原点格号（含负数侧）
+        /// <summary>格边长（米）——单一来源 <see cref="SimConfig.AoiCellSize"/>。</summary>
+        private static readonly float Cell = SimConfig.AoiCellSize;
+
+        /// <summary>半宽格数：覆盖 <c>±SimConfig.AoiGridExtentMeters</c>（向上取整，宁可多覆盖）。</summary>
+        private static readonly int HalfCells = Math.Max(1, (int)Math.Ceiling(SimConfig.AoiGridExtentMeters / Cell));
+
+        /// <summary>每轴格数——由 extent/cell 派生，不手写。</summary>
+        private static readonly int GridDim = HalfCells * 2 + 1;
+
+        /// <summary>原点格号（含负数侧）。</summary>
+        private static readonly int GridOrigin = -HalfCells;
 
         private readonly List<int>[] _buckets = CreateBuckets();
-        private readonly List<int> _outside = new List<int>();   // 兜底：理论上不可达（MovementSystem 已钳制世界边界）
+        private readonly List<int> _outside = new List<int>();   // 网格外：按视点距离兜底（见类注释 ①）
         private SimWorldState _cachedState;
         private int _cachedFrame = int.MinValue;
+
+        /// <summary>
+        /// 最近一次建格时落在**网格外**的活体数（诊断 / Ops 汇总）。
+        /// &gt;0 表示地图超出栅格覆盖范围：已按距离兜底**不漏发**，但应把
+        /// <see cref="SimConfig.AoiGridExtentMeters"/> 调到 ≥ 地图半宽/半深——
+        /// 否则每帧多一圈距离判定，且失去网格裁剪的带宽意义。
+        /// </summary>
+        public int OutsideCount { get; private set; }
 
         private static List<int>[] CreateBuckets()
         {
@@ -49,10 +77,15 @@ namespace LiteNet.Protocol
             for (int i = 0; i < SimConfig.MaxEntities; i++)
             {
                 if (!s.IsAlive(i)) continue;
-                int key = KeyOf(s.Entities[i].Pos);
-                if (key < 0) _outside.Add(i);
-                else _buckets[key].Add(i);
+
+                SimVector3 pos = s.Entities[i].Pos;
+                int gx = CellOf(pos.X, Cell) - GridOrigin;
+                int gz = CellOf(pos.Z, Cell) - GridOrigin;
+                if (gx < 0 || gx >= GridDim || gz < 0 || gz >= GridDim) _outside.Add(i);   // 网格外 → 距离兜底
+                else _buckets[gz * GridDim + gx].Add(i);
             }
+
+            OutsideCount = _outside.Count;
         }
 
         /// <summary>
@@ -86,19 +119,22 @@ namespace LiteNet.Protocol
                 }
             }
 
+            // 网格外兜底（审查修正 ①）：按视点**实际距离**判定——宁可多发，不可漏发
+            float r2 = radius * radius;
+            for (int k = 0; k < _outside.Count; k++)
+            {
+                int slot = _outside[k];
+                if (!s.IsAlive(slot)) continue;                       // 同帧理论上仍是活体（防御）
+                SimVector3 p = s.Entities[slot].Pos;
+                float dx = p.X - viewerPos.X;
+                float dz = p.Z - viewerPos.Z;
+                if (dx * dx + dz * dz <= r2) result.Add(slot);
+            }
+
             result.Sort();   // 槽位升序（网格遍历序不是槽位序；广播序必须确定）
         }
 
         /// <summary>视点所在格号（Python 式 floor 取整——负数侧连续，格边界不产生空洞）。</summary>
         public static int CellOf(float v, float cell) => (int)Math.Floor(v / cell);
-
-        private static int KeyOf(SimVector3 pos)
-        {
-            float cell = SimConfig.AoiCellSize;
-            int gx = CellOf(pos.X, cell) - GridOrigin;
-            int gz = CellOf(pos.Z, cell) - GridOrigin;
-            if (gx < 0 || gx >= GridDim || gz < 0 || gz >= GridDim) return -1;
-            return gz * GridDim + gx;
-        }
     }
 }

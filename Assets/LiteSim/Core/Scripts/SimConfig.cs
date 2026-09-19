@@ -57,5 +57,12 @@ namespace LiteSim
 
         /// <summary>AOI 广播半径（米）：同上；<c>0</c> = 关闭 AOI（全图广播，等价性验收用）。</summary>
         public const float AoiRadius = 30f;
+
+        /// <summary>
+        /// AOI 网格**覆盖半径**（米，2.5D XZ 平面）——栅格按 <c>±本值</c> 建立（格数 = 派生，不手写）。
+        /// 必须 ≥ 地图半宽/半深：越界实体虽由 `AoiFilter` 按视点距离兜底（不会漏发），但每帧多一圈距离判定、
+        /// 且失去网格裁剪的带宽意义。`AoiFilter.OutsideCount &gt; 0` 即此值配小了的信号（2026-09-19 审查加）。
+        /// </summary>
+        public const float AoiGridExtentMeters = 640f;
     }
 }

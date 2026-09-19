@@ -15,6 +15,66 @@ namespace LiteNet.Tests
     /// </summary>
     public sealed class AoiFilterTests
     {
+        /// <summary>
+        /// 网格外实体**不得漏发**（2026-09-19 审查：原先 `_outside` 只收集不消费 → 会从所有人的快照里消失）：
+        /// 视点在栅格覆盖范围外、且与目标**距离在半径内** → 目标必须出现在可见集合里；
+        /// 距离超半径 → 仍被裁掉（AOI 照常工作，不是"越界就全发"）。
+        /// </summary>
+        [Fact]
+        public void 网格外实体_半径内兜底可见_半径外仍裁剪()
+        {
+            float edge = SimConfig.AoiGridExtentMeters;          // 栅格覆盖半径
+            var s = At((edge + 100f, 0f), (edge + 200f, 0f), (0f, 0f));
+            var visible = new List<int>();
+            var aoi = new AoiFilter();
+
+            // 视点也在网格外，距 slot0 约 100m（> AoiRadius 30）→ 只有它自己附近的可见
+            aoi.CollectVisible(in s, new SimVector3(edge + 100f, 0f, 0f), SimConfig.AoiRadius, visible);
+            Assert.Contains(0, visible);                          // 视点自身在（修前会被漏掉）
+            Assert.True(aoi.OutsideCount >= 1, "应记录到网格外实体（诊断信号）");
+            Assert.DoesNotContain(2, visible);                    // 700+m 外的实体仍被 AOI 裁掉
+
+            // 半径放大到能覆盖 slot1（相距 100m）→ 网格外目标也按距离纳入
+            visible.Clear();
+            aoi.CollectVisible(in s, new SimVector3(edge + 100f, 0f, 0f), 150f, visible);
+            Assert.Contains(1, visible);
+        }
+
+        /// <summary>栅格范围由 SimConfig 派生：覆盖半径内的必在网格内；超出覆盖半径的才进兜底。</summary>
+        [Fact]
+        public void 栅格范围_由配置派生_边界内外行为正确()
+        {
+            float extent = SimConfig.AoiGridExtentMeters;
+            float inside = extent - SimConfig.AoiCellSize;        // 覆盖半径内侧一格
+            var sIn = At((inside, 0f));
+            var aoiIn = new AoiFilter();
+            var vIn = new List<int>();
+            aoiIn.CollectVisible(in sIn, new SimVector3(inside, 0f, 0f), SimConfig.AoiRadius, vIn);
+            Assert.Equal(0, aoiIn.OutsideCount);                  // 覆盖范围内 → 不入兜底
+            Assert.Contains(0, vIn);
+
+            float outside = extent + SimConfig.AoiCellSize;       // 覆盖半径外侧一格
+            var sOut = At((outside, 0f));
+            var aoiOut = new AoiFilter();
+            var vOut = new List<int>();
+            aoiOut.CollectVisible(in sOut, new SimVector3(outside, 0f, 0f), SimConfig.AoiRadius, vOut);
+            Assert.Equal(1, aoiOut.OutsideCount);                 // 超出覆盖范围 → 进兜底（但仍可见）
+            Assert.Contains(0, vOut);
+        }
+
+        /// <summary>灰盒标准地图（±50m）必须被栅格完全覆盖——否则每帧多一圈距离判定（配置配小了）。</summary>
+        [Fact]
+        public void 标准地图_全在栅格内()
+        {
+            var s = At((50f, 50f), (-50f, -50f), (50f, -50f), (-50f, 50f));
+            var aoi = new AoiFilter();
+            var visible = new List<int>();
+
+            aoi.CollectVisible(in s, SimVector3.Zero, 0f, visible);   // radius=0 也会建格
+
+            Assert.Equal(0, aoi.OutsideCount);
+        }
+
         /// <summary>把槽位按位置摆放（**显式给 Id**，不与生成序耦合；槽位号 = 传入顺序）。</summary>
         private static SimWorldState At(params (float x, float z)[] positions)
         {

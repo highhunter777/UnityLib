@@ -98,7 +98,7 @@ namespace LiteSim.Tests
 
         // ---- 辅助 ----
 
-        private static void AssertSame(float v, string? hint = null)
+        private static void AssertSame(float v, string hint = null)
         {
             int expected = BitConverter.SingleToInt32Bits((float)Math.Sqrt(v));
             int actual = BitConverter.SingleToInt32Bits(SimMath.Sqrt(v));
