@@ -53,8 +53,10 @@ namespace LiteNet.Tests
         {
             using var host = new ServerHost(new KcpTransportServer(), Port + 2);
             host.Ops.PrintEnabled = false;
-            // 单帧体 8ms（模拟过载：> 16ms 锚点的 1/2，连续跑必然落后）
-            var loop = new ServerLoop(host, () => System.Threading.Thread.Sleep(8));
+            // 单帧体 20ms（模拟过载：> 16ms 锚点周期，必然持续落后）。
+            // 注：Windows 的 Sleep(8) 因定时器精度（~15.6ms）也会超时构成过载，但 Linux（1ms 精度）真睡 8ms
+            // < 16ms 周期 → 永不落后 → 丢债断言在 ubuntu 必假——跨平台 CI 修复：注入强度提到 20ms（M10 批④）。
+            var loop = new ServerLoop(host, () => System.Threading.Thread.Sleep(20));
 
             var watch = Stopwatch.StartNew();
             loop.Run(400);
