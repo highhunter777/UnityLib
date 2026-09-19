@@ -93,10 +93,12 @@ namespace LiteNet.Tests
             _lastInput = local;
         }
 
-        /// <summary>快照处理：和解（Sim 内部 checksum 比对/覆盖/重放）+ 首次快照对齐本地实体 Id（按 Slot==PlayerId）。</summary>
+        /// <summary>快照处理：和解（Sim 内部 checksum 比对/覆盖/重放）+ 首次快照对齐本地实体 Id（按 Slot==PlayerId）。
+        /// StartGame 未达（Unreliable 快照可能先于 Reliable 信令到达）时丢弃快照——Sim 惰性建后下一快照即正常。</summary>
         private void OnSnapshot(Proto.StateSnapshot snapshot)
         {
             LastSnapshotFrame = snapshot.Frame;
+            if (_sim == null) return;   // Sim 未建：丢弃（Reliable 的 StartGame 随后即到，下一快照恢复正常）
 
             if (LocalEntityId == 0 && Client.PlayerId >= 0)
             {
