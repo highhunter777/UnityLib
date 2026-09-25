@@ -137,6 +137,39 @@ namespace LiteFramework.Tests
             Assert.True(hits.Count == 0, "纪律扫描发现违规：\n" + sb);
         }
 
+        /// <summary>
+        /// MetaServer 的 R11 边界登记（《Meta 服务专项设计》§3.2/§4.2）：
+        /// 模块/契约层受纯化把守，宿主装配层（Kestrel/IO/Console）按 §12 合法豁免。
+        ///
+        /// 排除按**目录段前缀**匹配（<c>IsUnderExcludedRoot</c>），故 <c>MetaServer/Host</c>
+        /// 只排 <c>Host/</c> 子目录、不误伤将来的 <c>Hosting/</c>。
+        /// 真实源码是否干净由上面的"零违规"用例证明；本用例钉的是**登记意图**，
+        /// 避免后续误把宿主层扫进去或误把模块层排除掉。
+        /// </summary>
+        [Fact]
+        public void 纪律_MetaServer_登记为受守根_仅宿主层豁免()
+        {
+            bool found = false;
+            ScanTarget meta = default;
+            for (int i = 0; i < ScanTargets.Default.Length; i++)
+            {
+                if (ScanTargets.Default[i].Root == "MetaServer")
+                {
+                    meta = ScanTargets.Default[i];
+                    found = true;
+                    break;
+                }
+            }
+
+            Assert.True(found, "ScanTargets.Default 缺少 MetaServer 目标——模块层将不受纪律扫描把守");
+            Assert.Contains(LintRule.R11RuntimePurity, meta.Rules);
+            Assert.NotNull(meta.ExcludeRoots);
+            Assert.Contains("MetaServer/Host", meta.ExcludeRoots);
+            // 只排宿主层的 Host/ 子目录；模块与契约层必须留在扫描内
+            Assert.DoesNotContain("MetaServer/Modules", meta.ExcludeRoots);
+            Assert.DoesNotContain("MetaServer/Contracts", meta.ExcludeRoots);
+        }
+
         [Fact]
         public void 纪律_R7_非法metaGUID被命中()
         {
@@ -179,6 +212,97 @@ namespace LiteFramework.Tests
             var sb = new StringBuilder();
             for (int i = 0; i < hits.Count; i++) sb.Append(hits[i]).Append('\n');
             Assert.True(hits.Count == 0, "发现非法 .meta GUID：\n" + sb);
+        }
+
+        [Fact]
+        public void 纪律_R8_ResourcesLoad被命中()
+        {
+            Assert.Equal(1, Count("var go = Resources.Load<GameObject>(\"x\");", LintRule.R8ResourcesLoad));
+            Assert.Equal(1, Count("var op = Resources.LoadAsync(\"x\");", LintRule.R8ResourcesLoad));
+            Assert.Equal(1, Count("var go = Resources . Load (\"x\");", LintRule.R8ResourcesLoad));   // 空白容忍
+            Assert.Equal(0, Count("// 曾用 Resources.Load 取配置，已改资源服务", LintRule.R8ResourcesLoad));
+            Assert.Equal(0, Count("_assets.Load<GameObject>(\"x\");", LintRule.R8ResourcesLoad));    // 正确入口不报
+        }
+
+        [Fact]
+        public void 纪律_R9_Mod类型被命中_驼峰与独立词与接口前缀()
+        {
+            Assert.Equal(1, Count("var m = new ModLoader();", LintRule.R9ModInSim));
+            Assert.Equal(1, Count("ModManager.Init();", LintRule.R9ModInSim));
+            Assert.Equal(1, Count("private IModContext _ctx;", LintRule.R9ModInSim));
+            Assert.Equal(1, Count("var mod = Mod;", LintRule.R9ModInSim));
+        }
+
+        [Fact]
+        public void 纪律_R9_Mod加小写不误报()
+        {
+            // Mod 后接小写 = Mode/Model/Modify/Modules/Modulo —— 都不是模组
+            Assert.Equal(0, Count("var mode = SimMode.Duel;", LintRule.R9ModInSim));
+            Assert.Equal(0, Count("var m = _model;", LintRule.R9ModInSim));
+            Assert.Equal(0, Count("ModifyValue(x);", LintRule.R9ModInSim));
+            Assert.Equal(0, Count("var mods = modules;", LintRule.R9ModInSim));
+        }
+
+        [Fact]
+        public void 纪律_R10_壳UI直发INetworkService被命中()
+        {
+            Assert.Equal(1, Count("private readonly INetworkService _net;", LintRule.R10ShellSendsBusinessPacket));
+            Assert.Equal(1, Count("var n = container.Resolve<INetworkService>();", LintRule.R10ShellSendsBusinessPacket));
+            Assert.Equal(0, Count("var s = new DockSlotService();", LintRule.R10ShellSendsBusinessPacket));
+        }
+
+        [Fact]
+        public void 纪律_R8R9R10_按规则集门控_不污染其他根()
+        {
+            // R8 只在 GameRules 生效：Sim 的 SimRules 里没有 R8 → 同文本不报（规则集门控语义）
+            Assert.Equal(0, Count("Resources.Load(\"x\");", LintRule.R1Transcendental));
+            // 规则号命名与 lint-allow 解析
+            Assert.Equal("R8", DisciplineScanner.RuleId(LintRule.R8ResourcesLoad));
+            Assert.Equal("R9", DisciplineScanner.RuleId(LintRule.R9ModInSim));
+            Assert.Equal("R10", DisciplineScanner.RuleId(LintRule.R10ShellSendsBusinessPacket));
+            // 行内豁免仍适用（含规则号的豁免只免该条）
+            Assert.Equal(0, Count("Resources.Load(\"x\"); // lint-allow R8", LintRule.R8ResourcesLoad));
+        }
+
+        // ---- R11：RoomServer/Runtime 纯化（《商业级通用服务端框架总设计》§8.1 禁止项）----
+
+        [Fact]
+        public void 纪律_R11_运行时纯化违例被逐类命中()
+        {
+            // 传输/Socket/协议
+            Assert.Equal(1, Count("var t = new KcpTransportServer();", LintRule.R11RuntimePurity));
+            Assert.Equal(1, Count("private readonly IRoomTransport _transport;", LintRule.R11RuntimePurity));
+            Assert.Equal(1, Count("var s = new Socket(...);", LintRule.R11RuntimePurity));
+            Assert.Equal(1, Count("var ep = new System.Net.IPEndPoint(...);", LintRule.R11RuntimePurity));
+            // proto / LiteNet 引用
+            Assert.Equal(1, Count("using LiteNet.Protocol;", LintRule.R11RuntimePurity));
+            Assert.Equal(1, Count("var x = LiteNet.Protocol.PacketType.Join;", LintRule.R11RuntimePurity));
+            Assert.Equal(1, Count("var b = Google.Protobuf.IMessage.Extensions;", LintRule.R11RuntimePurity));
+            // 墙钟/等待/Console/文件/随机
+            Assert.Equal(1, Count("var t = DateTime.Now;", LintRule.R11RuntimePurity));
+            Assert.Equal(1, Count("var t = Environment.TickCount64;", LintRule.R11RuntimePurity));
+            Assert.Equal(1, Count("var sw = Stopwatch.StartNew();", LintRule.R11RuntimePurity));
+            Assert.Equal(1, Count("Thread.Sleep(16);", LintRule.R11RuntimePurity));
+            Assert.Equal(1, Count("Console.WriteLine(\"tick\");", LintRule.R11RuntimePurity));
+            Assert.Equal(1, Count("File.ReadAllText(path);", LintRule.R11RuntimePurity));
+            Assert.Equal(1, Count("var r = new Random();", LintRule.R11RuntimePurity));
+        }
+
+        [Fact]
+        public void 纪律_R11_运行时合法面不误报()
+        {
+            // Sim 域引用与确定性工具是 Runtime 的合法面
+            Assert.Equal(0, Count("using LiteSim;", LintRule.R11RuntimePurity));
+            Assert.Equal(0, Count("var v = SimMath.MulAdd2(a, b, c, d);", LintRule.R11RuntimePurity));
+            Assert.Equal(0, Count("AuthSim.RngState = (ulong)Seed;", LintRule.R11RuntimePurity));
+            Assert.Equal(0, Count("var ring = new PendingInputRing(16);", LintRule.R11RuntimePurity));
+            // 常量复述不引用 LiteNet（ClientInputBatch.MaxFrames 的既定形态）
+            Assert.Equal(0, Count("public const int MaxFrames = 4;", LintRule.R11RuntimePurity));
+            // 注释里的禁用 API 名不算违规
+            Assert.Equal(0, Count("// 不打印 Console、不读 DateTime.Now（§8.1 禁止项）", LintRule.R11RuntimePurity));
+            // 规则号命名 + 门控（R11 只对 RoomServer/Runtime 目标启用，其他根的文本不经过本规则）
+            Assert.Equal("R11", DisciplineScanner.RuleId(LintRule.R11RuntimePurity));
+            Assert.Equal(0, Count("Console.WriteLine(\"ok\"); // lint-allow R11", LintRule.R11RuntimePurity));
         }
 
         private static int Count(string text, LintRule rule)

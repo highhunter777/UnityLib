@@ -29,6 +29,19 @@ namespace Tools.DisciplineScan
 
         /// <summary>R7 非法 .meta GUID：guid 必须是 32 位 hex（64 位 base64 会被 Unity 拒绝导入 → 资源/类型静默消失）。</summary>
         R7InvalidMetaGuid = 7,
+
+        /// <summary>R8 禁 Resources.Load/LoadAsync（`Assets/LiteGame`）：破「资源唯一入口」——统一走资源服务/收集组。</summary>
+        R8ResourcesLoad = 8,
+
+        /// <summary>R9 禁 Mod 相关类型（`Assets/LiteSim`）：守《模组系统设计》红线 M1「模组永不进 Sim」（判定必须在权威内）。</summary>
+        R9ModInSim = 9,
+
+        /// <summary>R10 禁 INetworkService（`Shell/UI`）：薄壳/UI 不得直发业务包（网络契约归框架层，业务数据经事件/桥过）。</summary>
+        R10ShellSendsBusinessPacket = 10,
+
+        /// <summary>R11 RoomServer/Runtime 纯化（《商业级通用服务端框架总设计》§8.1 禁止项）：
+        /// 禁 Transport/Socket/kcp、系统墙钟/Stopwatch/Sleep、Console、文件 IO、proto/LiteNet 引用与全局随机。</summary>
+        R11RuntimePurity = 11,
     }
 
     /// <summary>一条纪律违规。</summary>
@@ -77,6 +90,46 @@ namespace Tools.DisciplineScan
         /// <summary>R7：.meta 的 guid 行必须是 32 位 hex（2026-09-15 事故：64 位 base64 被 Unity 拒收）。</summary>
         private static readonly Regex MetaGuidValueRegex = new Regex(@"^[0-9a-fA-F]{32}$", RegexOptions.Compiled);
 
+        /// <summary>R8：资源唯一入口——禁 Resources.Load / LoadAsync（LoadAll 等未列，按《测试开发方案》§7.6 口径）。
+        /// 容忍泛型实参与空白：<c>Resources.Load&lt;GameObject&gt;("x")</c> / <c>Resources . Load (…)</c> 均命中。</summary>
+        private static readonly Regex R8Regex = new Regex(
+            @"\bResources\s*\.\s*(?:Load|LoadAsync)\s*(?:<[^<>()]*>)?\s*\(", RegexOptions.Compiled);
+
+        /// <summary>
+        /// R9：Mod 类标识符。只认「Mod/Mods 独立词」「Mod+大写驼峰」「IMod+大写」——
+        /// Mode/Model/Modify/Modules（Mod+小写）不误伤；IModXxx 因 I 与 M 间非词边界需显式列出。
+        /// </summary>
+        private static readonly Regex R9Regex = new Regex(
+            @"\b(?:Mod|Mods)(?![A-Za-z])|\bMod[A-Z]\w*|\bIMod[A-Z]\w*", RegexOptions.Compiled);
+
+        /// <summary>R10：Shell/UI 不得直发业务包——禁 INetworkService 契约。</summary>
+        private static readonly Regex R10Regex = new Regex(@"\bINetworkService\b", RegexOptions.Compiled);
+
+        /// <summary>
+        /// R11：RoomServer/Runtime 纯化（§8.1 禁止项——Runtime 只持确定性房间状态，时间经 RoomCommand.Tick 注入、
+        /// 输入经 ClientInputBatch 纯数据、输出经 RoomOutput 纯事件）。命中任一即违规：
+        /// Console / DateTime.Now / Environment.TickCount / Stopwatch / Thread.Sleep / System.Net / Socket / Kcp* /
+        /// IRoomTransport / using LiteNet 或 LiteNet. 限定名（proto 单源在 LiteNet）/ Google.Protobuf /
+        /// System.IO / File.* / new Random()（确定性随机走 Sim 的 RngState）。注释剔除后匹配（本文件命中示例在字符串里）。
+        /// </summary>
+        private static readonly Regex R11Regex = new Regex(
+            @"\bConsole\s*\.\s*(?:Write|WriteLine|WriteAsync|WriteLineAsync|Error|Out|In|Read|ReadLine|ReadKey)" +
+            @"|\bDateTime\s*\.\s*(?:Now|UtcNow)" +
+            @"|\bEnvironment\s*\.\s*TickCount" +
+            @"|\bStopwatch\b" +
+            @"|\bThread\s*\.\s*Sleep\b" +
+            @"|\bSystem\s*\.\s*Net\b" +
+            @"|\bSocket\b" +
+            @"|\bKcp\w*" +
+            @"|\bIRoomTransport\b" +
+            @"|\busing\s+LiteNet\b" +
+            @"|\bLiteNet\s*\." +
+            @"|\bGoogle\s*\.\s*Protobuf\b" +
+            @"|\bSystem\s*\.\s*IO\b" +
+            @"|\bFile\s*\.\s*(?:Open|Read|Write|Delete|Exists|Create|Append|Move|Copy)" +
+            @"|\bnew\s+Random\s*\(",
+            RegexOptions.Compiled);
+
         private static readonly Regex NumericLiteral = new Regex(
             @"^[-+]?[0-9]+(\.[0-9]+)?[fFuUlLdDmM]*$", RegexOptions.Compiled);
 
@@ -90,6 +143,10 @@ namespace Tools.DisciplineScan
             LintRule.R5BareUnityEditor,
             LintRule.R6NativeCoroutine,
             LintRule.R7InvalidMetaGuid,
+            LintRule.R8ResourcesLoad,
+            LintRule.R9ModInSim,
+            LintRule.R10ShellSendsBusinessPacket,
+            LintRule.R11RuntimePurity,
         };
 
         public static string RuleId(LintRule rule)
@@ -103,6 +160,10 @@ namespace Tools.DisciplineScan
                 case LintRule.R5BareUnityEditor: return "R5";
                 case LintRule.R6NativeCoroutine: return "R6";
                 case LintRule.R7InvalidMetaGuid: return "R7";
+                case LintRule.R8ResourcesLoad: return "R8";
+                case LintRule.R9ModInSim: return "R9";
+                case LintRule.R10ShellSendsBusinessPacket: return "R10";
+                case LintRule.R11RuntimePurity: return "R11";
                 default: return "R?";
             }
         }
@@ -146,8 +207,10 @@ namespace Tools.DisciplineScan
             return result;
         }
 
-        /// <summary>扫描一个源根目录（相对 <paramref name="projectRoot"/>）下的全部 *.cs。</summary>
-        public static List<LintViolation> ScanRoot(string projectRoot, string relativeRoot, LintRule[] rules)
+        /// <summary>扫描一个源根目录（相对 <paramref name="projectRoot"/>）下的全部 *.cs。
+        /// <paramref name="excludeRoots"/> 内的子根被跳过（相对路径前缀匹配，用于同一大根下的异域子目录）。</summary>
+        public static List<LintViolation> ScanRoot(string projectRoot, string relativeRoot, LintRule[] rules,
+            string[] excludeRoots = null)
         {
             var result = new List<LintViolation>();
             string root = Path.Combine(projectRoot, relativeRoot);
@@ -160,9 +223,26 @@ namespace Tools.DisciplineScan
                 string normalized = files[i].Replace('\\', '/');
                 if (IsExcluded(normalized)) continue;
                 string display = RelativeDisplay(projectRoot, normalized);
+                if (IsUnderExcludedRoot(display, excludeRoots)) continue;
                 result.AddRange(ScanText(display, File.ReadAllText(files[i]), rules));
             }
             return result;
+        }
+
+        /// <summary>相对路径是否落在任一排除子根之下（前缀匹配 + 路径边界，防 "View" 误匹配 "ViewXxx"）。</summary>
+        private static bool IsUnderExcludedRoot(string relativePath, string[] excludeRoots)
+        {
+            if (excludeRoots == null || excludeRoots.Length == 0) return false;
+            for (int i = 0; i < excludeRoots.Length; i++)
+            {
+                string r = excludeRoots[i];
+                if (string.IsNullOrEmpty(r)) continue;
+                r = r.Replace('\\', '/').TrimEnd('/');
+                if (relativePath.StartsWith(r, StringComparison.Ordinal)
+                    && (relativePath.Length == r.Length || relativePath[r.Length] == '/'))
+                    return true;
+            }
+            return false;
         }
 
         /// <summary>按 <see cref="ScanTargets.Default"/> 扫描全部目标（含 <see cref="ScanTargets.MetaRoots"/> 的 .meta），返回「目标 → 违规」。</summary>
@@ -172,7 +252,7 @@ namespace Tools.DisciplineScan
             ScanTarget[] targets = ScanTargets.Default;
             for (int t = 0; t < targets.Length; t++)
             {
-                List<LintViolation> hits = ScanRoot(projectRoot, targets[t].Root, targets[t].Rules);
+                List<LintViolation> hits = ScanRoot(projectRoot, targets[t].Root, targets[t].Rules, targets[t].ExcludeRoots);
                 for (int i = 0; i < hits.Count; i++)
                     result.Add(new KeyValuePair<string, LintViolation>(targets[t].Root, hits[i]));
             }
@@ -256,6 +336,10 @@ namespace Tools.DisciplineScan
                 case LintRule.R4DeterminismContainer: return R4Regex.IsMatch(code);
                 case LintRule.R5BareUnityEditor: return HasR5Violation(code);
                 case LintRule.R6NativeCoroutine: return R6Regex.IsMatch(code);
+                case LintRule.R8ResourcesLoad: return R8Regex.IsMatch(code);
+                case LintRule.R9ModInSim: return R9Regex.IsMatch(code);
+                case LintRule.R10ShellSendsBusinessPacket: return R10Regex.IsMatch(code);
+                case LintRule.R11RuntimePurity: return R11Regex.IsMatch(code);
                 default: return false;
             }
         }
